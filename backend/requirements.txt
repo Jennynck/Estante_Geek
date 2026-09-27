@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+alembic          # migrações do banco
+passlib[bcrypt]  # hash de senha (RNF01)
+python-jose      # tokens de autenticação
+httpx            # chamadas às APIs Jikan e Comic Vine
+python-dotenv
