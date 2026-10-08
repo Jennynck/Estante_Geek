@@ -8,8 +8,8 @@ class Usuario(Base):
     __tablename__ = "usuarios"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome_perfil: Mapped[str] = mapped_column(String(100))
-    nome_usuario: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    nome_perfil: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    nome_usuario: Mapped[str] = mapped_column(String(50))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     senha_hash: Mapped[str] = mapped_column(String(255))
     email_confirmado: Mapped[bool] = mapped_column(Boolean, default=False)
