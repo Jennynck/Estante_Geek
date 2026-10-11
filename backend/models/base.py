@@ -9,12 +9,12 @@ class TipoObra(str, enum.Enum):
     HQ = "HQ"
     MANGA = "Manga"
 
-class FonteAPI(str, enum.Enum):
-    JIKAN = "jikan"
-    COMICVINE = "comicvine"
-
 class StatusLeitura(str, enum.Enum):
-    QUERO_LER = "Quero ler"
+    QUERO_LER = "Quero Ler"
     LENDO = "Lendo"
     LIDO = "Lido"
     PAUSADO = "Pausado"
+
+# Faz o banco salvar o texto do status "Quero Ler"
+def valores_enum(classe_enum):
+    return [item.value for item in classe_enum]

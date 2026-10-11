@@ -1,25 +1,24 @@
-from datetime import date, datetime
-from sqlalchemy import (Boolean, Date, DateTime, Enum, 
-                        ForeignKey, String, Text, UniqueConstraint, func,)
+from datetime import datetime
+from sqlalchemy import (Boolean, DateTime, Enum, ForeignKey, LargeBinary,
+                        String, Text, UniqueConstraint, func)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from models.base import Base, FonteAPI, TipoObra
+from models.base import Base, TipoObra
 
 class Usuario(Base):
     __tablename__ = "usuarios"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome_perfil: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    nome_perfil: Mapped[str] = mapped_column(String(50), unique=True)
     nome_usuario: Mapped[str] = mapped_column(String(50))
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    senha_hash: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(100), unique=True)
+    senha: Mapped[str] = mapped_column(String(250))
     email_confirmado: Mapped[bool] = mapped_column(Boolean, default=False)
-    foto: Mapped[str | None] = mapped_column(String(500))
-    instagram: Mapped[str | None] = mapped_column(String(100))
-    discord: Mapped[str | None] = mapped_column(String(100))
-    x: Mapped[str | None] = mapped_column(String(100))
+    foto: Mapped[bytes | None] = mapped_column(LargeBinary)
+    instagram: Mapped[str | None] = mapped_column(String(50))
+    discord: Mapped[str | None] = mapped_column(String(50))
+    x: Mapped[str | None] = mapped_column(String(50))
     perfil_publico: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
-    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     obras: Mapped[list["UsuarioObra"]] = relationship(
         back_populates="usuario", cascade="all, delete-orphan"
@@ -32,7 +31,7 @@ class Editora(Base):
     __tablename__ = "editoras"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str] = mapped_column(String(150), unique=True)
+    nome: Mapped[str] = mapped_column(String(100), unique=True)
 
     obras: Mapped[list["Obra"]] = relationship(back_populates="editora")
 
@@ -40,32 +39,24 @@ class Genero(Base):
     __tablename__ = "generos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    categoria: Mapped[str] = mapped_column(String(100), unique=True)
+    categoria: Mapped[str] = mapped_column(String(50), unique=True)
 
-    # secondary recebe o NOME da tabela associativa que esta em associativas.py
     obras: Mapped[list["Obra"]] = relationship(
         secondary="obra_generos", back_populates="generos"
     )
 
 class Obra(Base):
     __tablename__ = "obras"
-    __table_args__ = (
-        UniqueConstraint("fonte", "id_externo", name="uq_obras_fonte_id_externo"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    titulo: Mapped[str] = mapped_column(String(250), index=True)
+    titulo: Mapped[str] = mapped_column(String(250))
     sinopse: Mapped[str | None] = mapped_column(Text)
-    capa_url: Mapped[str | None] = mapped_column(String(500))
+    capa_url: Mapped[str | None] = mapped_column(String(250))
     tipo_obra: Mapped[TipoObra] = mapped_column(Enum(TipoObra))
-    total_volumes: Mapped[int | None]
-    data_publicacao: Mapped[date | None] = mapped_column(Date)
+    # unique evita salvar a mesma obra duas vezes
+    api_url: Mapped[str] = mapped_column(String(250), unique=True)
+    data_publicacao: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     editoras_id: Mapped[int | None] = mapped_column(ForeignKey("editoras.id"))
-
-    fonte: Mapped[FonteAPI] = mapped_column(Enum(FonteAPI))
-    id_externo: Mapped[str] = mapped_column(String(50))
-    api_url: Mapped[str | None] = mapped_column(String(500))
-    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     editora: Mapped["Editora | None"] = relationship(back_populates="obras")
     generos: Mapped[list["Genero"]] = relationship(
@@ -79,6 +70,10 @@ class Obra(Base):
         back_populates="obra", cascade="all, delete-orphan"
     )
 
+    @property
+    def total_volumes(self) -> int:
+        return len(self.volumes)
+
 class Volume(Base):
     __tablename__ = "volumes"
     __table_args__ = (
@@ -86,13 +81,12 @@ class Volume(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    obras_id: Mapped[int] = mapped_column(ForeignKey("obras.id", ondelete="CASCADE"))
-    numero_volume: Mapped[int]
-    titulo_volume: Mapped[str | None] = mapped_column(String(250))
+    titulo_volume: Mapped[str] = mapped_column(String(250))
     sinopse: Mapped[str | None] = mapped_column(Text)
-    capa_url: Mapped[str | None] = mapped_column(String(500))
-    data_publicacao: Mapped[date | None] = mapped_column(Date)
-    id_externo: Mapped[str | None] = mapped_column(String(50))
+    numero_volume: Mapped[int]
+    capa_url: Mapped[str | None] = mapped_column(String(250))
+    data_publicacao: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    obras_id: Mapped[int] = mapped_column(ForeignKey("obras.id", ondelete="CASCADE"))
 
     obra: Mapped["Obra"] = relationship(back_populates="volumes")
     usuarios: Mapped[list["UsuarioVolume"]] = relationship(
@@ -104,4 +98,4 @@ class Termo(Base):
     __tablename__ = "termos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    termo_inadequado: Mapped[str] = mapped_column(String(100), unique=True)
+    termos_inadequados: Mapped[str] = mapped_column(String(100), unique=True)
