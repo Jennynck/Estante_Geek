@@ -2,8 +2,7 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 psycopg2-binary
-alembic          # migrações do banco
-passlib[bcrypt]  # hash de senha (RNF01)
-python-jose      # tokens de autenticação
+bcrypt           # senha criptografada
+pyjwt            # token de login
 httpx            # chamadas às APIs Jikan e Comic Vine
-python-dotenv
+email-validator  # validação do e-mail (EmailStr)
