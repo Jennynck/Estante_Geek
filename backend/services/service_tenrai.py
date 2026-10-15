@@ -5,47 +5,46 @@ from datetime import datetime
 from models.base import TipoObra
 from schemas.obra_api import ObraAPI
 
-BASE_URL = (os.getenv("JIKAN_BASE_URL") or "https://api.jikan.moe/v4").strip(" \"'")
-INTERVALO = 0.5   # a Jikan permite 2 requisições por segundo
+BASE_URL = (os.getenv("TENRAI_BASE_URL") or "https://api.tenrai.org/v1").strip(" \"'")
+INTERVALO = 0.5   # pausa entre requisições, para não sobrecarregar a API gratuita
 
 _client = httpx.Client(base_url=BASE_URL, timeout=10)
 
-class JikanError(Exception):
-    """Erro ao consultar a API Jikan"""
+class TenraiError(Exception):
+    """Erro ao consultar a API Tenrai"""
 
 def get_json(caminho: str, params: dict | None = None) -> dict | None:
-    """GET na Jikan. Retorna None se não existir (404)."""
+    """GET no Tenrai. Retorna None se não existir (404)"""
     time.sleep(INTERVALO)
     try:
         resposta = _client.get(caminho, params=params)
     except httpx.HTTPError as erro:
-        raise JikanError(f"Falha de conexão com a Jikan: {erro}") from erro
+        raise TenraiError(f"Falha de conexão com o Tenrai: {erro}") from erro
 
     if resposta.status_code == 404:
         return None
     if resposta.status_code == 429:
-        raise JikanError("Limite de requisições da Jikan atingido, tente em instantes")
+        raise TenraiError("Limite de requisições do Tenrai atingido, tente em instantes")
     if resposta.status_code != 200:
-        raise JikanError(f"Jikan indisponível (HTTP {resposta.status_code})")
+        raise TenraiError(f"Tenrai indisponível (HTTP {resposta.status_code})")
     return resposta.json()
 
-
-class JikanService:
+class TenraiService:
     @staticmethod
     def buscarMangas(termo: str, pagina: int = 1, limite: int = 10) -> list[ObraAPI]:
         dados = get_json("/manga", {"q": termo, "page": pagina, "limit": limite, "sfw": "true"})
         if not dados:
             return []
-        return [JikanService._mapear(item) for item in dados.get("data") or []]
+        return [TenraiService._mapear(item) for item in dados.get("data") or []]
 
     @staticmethod
     def buscarMangaPorId(mal_id: int) -> ObraAPI | None:
         dados = get_json(f"/manga/{mal_id}")
         if not dados or not dados.get("data"):
             return None
-        return JikanService._mapear(dados["data"])
+        return TenraiService._mapear(dados["data"])
 
-    # Converte a resposta da Jikan para o formato ObraAPI
+    # Converte a resposta do Tenrai (dados do MyAnimeList) para o formato ObraAPI
     @staticmethod
     def _mapear(item: dict) -> ObraAPI:
         imagens = (item.get("images") or {}).get("jpg") or {}

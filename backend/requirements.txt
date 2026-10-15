@@ -4,5 +4,5 @@ sqlalchemy
 psycopg2-binary
 bcrypt           # senha criptografada
 pyjwt            # token de login
-httpx            # chamadas às APIs Jikan e Comic Vine
+httpx            # chamadas às APIs Tenrai e Comic Vine
 email-validator  # validação do e-mail (EmailStr)
