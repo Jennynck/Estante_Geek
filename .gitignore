@@ -12,3 +12,5 @@ dist/
 
 # Docker
 db/pgdata/
+# SvelteKit
+.svelte-kit/
