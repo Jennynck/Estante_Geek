@@ -2,7 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from models.base import TipoObra
 
-# Formato comum das obras vindas da Jikan e do Comic Vine
+# Formato comum das obras vindas do Tenrai e do Comic Vine
 class ObraAPI(BaseModel):
     api_url: str
     titulo: str

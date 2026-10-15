@@ -8,7 +8,7 @@ from schemas.obra_api import ObraAPI
 from schemas.usuario_obra import ResenhaResponse, ResenhasObra
 from schemas.volume import VolumeResponse
 from services.service_comic_vine import ComicVineError, ComicVineService
-from services.service_jikan import JikanError, JikanService
+from backend.services.service_tenraii import TenraiError, TenraiService
 
 class CatalogoService:
     # Catálogo com busca por nome e filtros de tipo e editora (RF03)
@@ -19,7 +19,7 @@ class CatalogoService:
         pagina, limite = max(pagina, 1), min(max(limite, 1), 25)
         try:
             obras = CatalogoService.buscar(db, busca, tipo, editora, pagina, limite)
-        except (JikanError, ComicVineError) as erro:
+        except (TenraiError, ComicVineError) as erro:
             raise HTTPException(502, str(erro))
         return CatalogoService.montar(db, obras)
 
@@ -68,11 +68,11 @@ class CatalogoService:
             consulta = consulta.where(Obra.editora.has(Editora.nome.ilike(f"%{editora}%")))
         return list(db.scalars(consulta.offset((pagina - 1) * limite).limit(limite)))
 
-    # Mangás vêm da Jikan (RNF05) e HQs do Comic Vine (RNF06). Se uma API falhar, o erro sobe para listar
+    # Mangás vêm do Tenrai (RNF05) e HQs do Comic Vine (RNF06). Se uma API falhar, o erro sobe para listar
     @staticmethod
     def _importar(db: Session, busca: str, tipo: TipoObra | None, pagina: int, limite: int) -> None:
         if tipo in (None, TipoObra.MANGA):
-            for obra_api in JikanService.buscarMangas(busca, pagina, limite):
+            for obra_api in TenraiService.buscarMangas(busca, pagina, limite):
                 CatalogoService.salvar(db, obra_api)
             db.commit()
         if tipo in (None, TipoObra.HQ):
