@@ -8,7 +8,7 @@ from schemas.obra_api import ObraAPI
 from schemas.usuario_obra import ResenhaResponse, ResenhasObra
 from schemas.volume import VolumeResponse
 from services.service_comic_vine import ComicVineError, ComicVineService
-from backend.services.service_tenraii import TenraiError, TenraiService
+from services.service_tenrai import TenraiError, TenraiService
 
 class CatalogoService:
     # Catálogo com busca por nome e filtros de tipo e editora (RF03)

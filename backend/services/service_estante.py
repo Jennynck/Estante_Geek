@@ -38,7 +38,7 @@ class EstanteService:
             select(Volume.obras_id, func.count())
             .join(UsuarioVolume, UsuarioVolume.volumes_id == Volume.id)
             .where(UsuarioVolume.usuarios_id == usuario_id,
-                   UsuarioVolume.status_leitura == StatusLeitura.LIDO)
+                   UsuarioVolume.lido == True)
             .group_by(Volume.obras_id)).all())
 
         itens = []
@@ -97,7 +97,7 @@ class EstanteService:
 
         total = len(linhas)
         possuidos = sum(1 for l in linhas if l.possui_volume)
-        lidos = sum(1 for l in linhas if l.status_leitura == StatusLeitura.LIDO)
+        lidos = sum(1 for l in linhas if l.lido is True)
         obra = CatalogoService.montar(db, [registro.obra])[0]
         obra.na_estante = True
         return ChecklistObra(
@@ -108,7 +108,7 @@ class EstanteService:
     # Marcar ou desmarcar o volume atualiza o checklist (RN11). O status segue as transições de RN07
     @staticmethod
     def atualizarVolume(db: Session, usuario_id: int, obras_id: int, volumes_id: int,
-                         possui_volume: bool | None, status_leitura: StatusLeitura | None) -> UsuarioVolume:
+                         possui_volume: bool | None, lido: bool | None) -> UsuarioVolume:
         EstanteService._buscarRegistro(db, usuario_id, obras_id)
         linha = db.scalar(
             select(UsuarioVolume).join(UsuarioVolume.volume)
@@ -117,11 +117,8 @@ class EstanteService:
         if not linha:
             raise HTTPException(404, "Volume não encontrado nesta obra")
 
-        if status_leitura and status_leitura != linha.status_leitura:
-            if status_leitura not in TRANSICOES[linha.status_leitura]:
-                raise HTTPException(400, f"Não é possível mudar o volume de "
-                                         f"'{linha.status_leitura.value}' para '{status_leitura.value}'")
-            linha.status_leitura = status_leitura
+        if lido is not None:
+            linha.lido = lido 
         if possui_volume is not None:
             linha.possui_volume = possui_volume
         db.commit()
