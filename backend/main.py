@@ -94,7 +94,7 @@ def verChecklist(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
 def atualizarVolume(obras_id: int, volumes_id: int, dados: UsuarioVolumeUpdate,
                      usuario: Usuario = Depends(usuarioLogado), db: Session = Depends(get_db)):
     return EstanteService.atualizarVolume(db, usuario.id, obras_id, volumes_id,
-                                           dados.possui_volume, dados.status_leitura)
+                                           dados.possui_volume, dados.lido)
 
 
 # ---------- Resenha ----------

@@ -46,11 +46,8 @@ class UsuarioVolume(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     possui_volume: Mapped[bool] = mapped_column(Boolean, default=False)
-    status_leitura: Mapped[StatusLeitura] = mapped_column(
-        Enum(StatusLeitura, native_enum=False, create_constraint=True,
-             values_callable=valores_enum),
-        default=StatusLeitura.QUERO_LER,
-    )
+    lido: Mapped[bool] = mapped_column(Boolean, default=False)
+    
     usuarios_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"))
     volumes_id: Mapped[int] = mapped_column(ForeignKey("volumes.id", ondelete="CASCADE"))
 
