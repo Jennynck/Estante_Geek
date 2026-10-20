@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from models.base import StatusLeitura, TipoObra
 from schemas.volume import VolumeResponse
 
@@ -13,6 +13,11 @@ class ObraResponse(BaseModel):
     total_volumes: int
     data_publicacao: datetime
     api_url: str
+
+# importa uma obra para o banco a partir do id dela na API
+class ObraImportar(BaseModel):
+    tipo_obra: TipoObra
+    id_api: int = Field(gt=0)   # mal_id (Tenrai) ou id do volume (Comic Vine)
 
 # Obra no catálogo e na estante
 class ObraCatalogo(ObraResponse):

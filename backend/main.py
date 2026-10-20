@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import engine, get_db
 from models import Base, Usuario
 from models.base import TipoObra
-from schemas.obra import ObraDetalhe, ObraResponse
+from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar
 from schemas.usuario import TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse
 from schemas.usuario_obra import (
     ResenhaCreate, ResenhaResponse, ResenhasObra, UsuarioObraCreate, UsuarioObraResponse,
@@ -31,6 +31,12 @@ app.add_middleware(
 def usuarioLogado(credenciais=Depends(HTTPBearer()), db: Session = Depends(get_db)) -> Usuario:
     return UsuarioService.buscarPorToken(db, credenciais.credentials)
 
+
+# ---------- Importação das APIs ----------
+@app.post("/obras/importar", response_model=ObraDetalhe)
+def importarObra(dados: ObraImportar, usuario: Usuario = Depends(usuarioLogado),
+                 db: Session = Depends(get_db)):
+    return CatalogoService.importarPorIdApi(db, dados.tipo_obra, dados.id_api)
 
 # ---------- Autenticação e perfil ----------
 @app.post("/auth/cadastro", response_model=UsuarioResponse, status_code=201)
