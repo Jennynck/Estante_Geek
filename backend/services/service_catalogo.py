@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 from models import Editora, Genero, Obra, UsuarioObra, Volume
 from models.base import TipoObra
@@ -33,7 +33,7 @@ class CatalogoService:
         return ObraDetalhe(**catalogo.model_dump(),
                            volumes=[VolumeResponse.model_validate(v) for v in obra.volumes])
 
-    # Resenhas da obra com a média das notas (RF09 e RN19)
+    # Resenhas da obra com a media das notas (RF09 e RN19)
     @staticmethod
     def resenhas(db: Session, obras_id: int) -> ResenhasObra:
         if not db.get(Obra, obras_id):
@@ -68,7 +68,7 @@ class CatalogoService:
             consulta = consulta.where(Obra.editora.has(Editora.nome.ilike(f"%{editora}%")))
         return list(db.scalars(consulta.offset((pagina - 1) * limite).limit(limite)))
 
-    # Mangás vêm do Tenrai (RNF05) e HQs do Comic Vine (RNF06). Se uma API falhar, o erro sobe para listar
+    # mangas vem do Tenrai (RNF05) e HQs do Comic Vine (RNF06). Se uma API falhar, o erro sobe para listar
     @staticmethod
     def _importar(db: Session, busca: str, tipo: TipoObra | None, pagina: int, limite: int) -> None:
         if tipo in (None, TipoObra.MANGA):
@@ -79,6 +79,34 @@ class CatalogoService:
             for obra_api in ComicVineService.buscarHqs(busca, pagina, limite):
                 CatalogoService.salvar(db, obra_api)
             db.commit()
+
+    # importa uma obra especifica pelo id da API (RNF07 e RNF08)
+    @staticmethod
+    def importarPorIdApi(db: Session, tipo_obra: TipoObra, id_api: int) -> ObraDetalhe:
+        obra = CatalogoService._buscarPorIdApi(db, tipo_obra, id_api)
+        if not obra:
+            try:
+                if tipo_obra == TipoObra.MANGA:
+                    obra_api = TenraiService.buscarMangaPorId(id_api)
+                else:
+                    obra_api = ComicVineService.buscarHqPorId(id_api)
+            except (TenraiError, ComicVineError) as erro:
+                raise HTTPException(502, str(erro))
+            if not obra_api:
+                raise HTTPException(404, "Obra não encontrada na API externa")
+            obra = CatalogoService.salvar(db, obra_api)
+            db.commit()
+        return CatalogoService.detalhar(db, obra.id)
+
+    # O id da API está dentro da api_url salva
+    @staticmethod
+    def _buscarPorIdApi(db: Session, tipo_obra: TipoObra, id_api: int) -> Obra | None:
+        if tipo_obra == TipoObra.MANGA:
+            filtro = or_(Obra.api_url.like(f"%myanimelist.net/manga/{id_api}/%"),
+                         Obra.api_url.like(f"%myanimelist.net/manga/{id_api}"))
+        else:
+            filtro = Obra.api_url.like(f"%/4050-{id_api}/")
+        return db.scalar(select(Obra).where(Obra.tipo_obra == tipo_obra, filtro))
 
     # Guarda a obra no banco (RNF07). Obras já salvas (mesma api_url) são reaproveitadas
     @staticmethod
@@ -94,6 +122,9 @@ class CatalogoService:
 
         generos = [db.scalar(select(Genero).where(Genero.categoria == nome)) or Genero(categoria=nome)
                    for nome in set(obra_api.generos)]
+        # Quando a API não informa o total (one-shots ou obras sem contagem), a obra ganha 1 volume
+        # para que o checklist e o progresso continuem funcionando
+        total_volumes = obra_api.total_volumes or 1
 
         obra = Obra(
             titulo=obra_api.titulo, sinopse=obra_api.sinopse, capa_url=obra_api.capa_url,
@@ -101,12 +132,12 @@ class CatalogoService:
             editora=editora, generos=generos,
             # As APIs só informam quantos volumes existem, então eles são numerados de 1 até o total
             volumes=[Volume(numero_volume=n, titulo_volume=f"Volume {n}", capa_url=obra_api.capa_url)
-                     for n in range(1, (obra_api.total_volumes or 0) + 1)],
+                     for n in range(1, total_volumes + 1)],
         )
         if obra_api.data_publicacao:
             obra.data_publicacao = obra_api.data_publicacao
         db.add(obra)
-        db.flush()   # grava já a editora e os gêneros novos para a próxima obra reaproveitá-los
+        db.flush()   # grava já a editora e os gêneros novos para a próxima obra reaproveitar
         return obra
 
     # Converte as obras do banco para o formato devolvido pela API, com total de volumes e média das notas
