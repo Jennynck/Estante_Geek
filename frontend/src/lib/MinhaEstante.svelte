@@ -16,27 +16,11 @@
   let erro = $state('');
   let aviso = $state('');
 
-  // Etiquetas definidas no projeto.
+  const etiquetas = ['Quero Ler', 'Lendo', 'Lido', 'Pausado'];
 
-  const etiquetas = [
-    'Quero Ler',
-    'Lendo',
-    'Lido',
-    'Pausado'
-  ];
-
-  const filtros = [
-    'TODOS',
-    ...etiquetas
-  ];
+  const filtros = ['TODOS', ...etiquetas];
 
   // RN07 - Regras de transição dos status.
-  //
-  // Quero Ler -> Lendo
-  // Lendo -> Lido ou Pausado
-  // Pausado -> Lendo ou Lido
-  // Lido -> Lendo (releitura)
-
   const transicoes = {
     'Quero Ler': ['Lendo'],
     'Lendo': ['Lido', 'Pausado'],
@@ -44,17 +28,56 @@
     'Lido': ['Lendo']
   };
 
-  // Filtrar obras por status.
-
   let itensFiltrados = $derived(
     filtro === 'TODOS'
       ? itens
-      : itens.filter(
-          (item) => item.status === filtro
-        )
+      : itens.filter((item) => item.status === filtro)
   );
 
-  // Verificar se uma alteração é permitida.
+  // Redes sociais cadastradas no perfil.
+
+  function semArroba(valor) {
+    return String(valor || '').trim().replace(/^@+/, '');
+  }
+
+  let redes = $derived.by(() => {
+    if (!perfil) return [];
+
+    const lista = [];
+
+    const instagram = semArroba(perfil.instagram);
+    const discord = String(perfil.discord || '').trim();
+    const x = semArroba(perfil.x);
+
+    if (instagram) {
+      lista.push({
+        chave: 'instagram',
+        icone: '📷',
+        texto: `@${instagram}`,
+        href: `https://instagram.com/${encodeURIComponent(instagram)}`
+      });
+    }
+
+    if (discord) {
+      lista.push({
+        chave: 'discord',
+        icone: '🎮',
+        texto: discord,
+        href: null
+      });
+    }
+
+    if (x) {
+      lista.push({
+        chave: 'x',
+        icone: '✕',
+        texto: `@${x}`,
+        href: `https://x.com/${encodeURIComponent(x)}`
+      });
+    }
+
+    return lista;
+  });
 
   function podeAlterar(atual, proximo) {
     return (
@@ -63,23 +86,22 @@
     );
   }
 
-  // Contar obras em cada categoria.
-
   function quantidade(opcao) {
-    if (opcao === 'TODOS') {
-      return itens.length;
-    }
-
-    return itens.filter(
-      (item) => item.status === opcao
-    ).length;
+    if (opcao === 'TODOS') return itens.length;
+    return itens.filter((item) => item.status === opcao).length;
   }
 
   function nomeDaEtiqueta(status) {
     return String(status || '').toUpperCase();
   }
 
-  // Carregar perfil e estante.
+  function porcentagem(item) {
+    return Math.max(0, Math.min(100, Number(item.progresso) || 0));
+  }
+
+  function unidade(item) {
+    return item.obra.tipo_obra === 'HQ' ? 'edições' : 'volumes';
+  }
 
   async function carregar() {
     autenticado = Boolean(obterToken());
@@ -97,29 +119,19 @@
     try {
       const dados = await requisicao('/estante');
 
-      itens = Array.isArray(dados)
-        ? dados
-        : [];
-
-      // Caso o perfil falhe, a estante continua.
+      itens = Array.isArray(dados) ? dados : [];
 
       try {
         perfil = await requisicao('/usuarios/me');
       } catch {
         perfil = null;
       }
-
     } catch (falha) {
-      erro =
-        falha.message ||
-        'Não foi possível carregar a estante.';
-
+      erro = falha.message || 'Não foi possível carregar a estante.';
     } finally {
       carregando = false;
     }
   }
-
-  // Alterar o status usando as regras RN07.
 
   async function alterarEtiqueta(item, evento) {
     const seletor = evento.currentTarget;
@@ -127,11 +139,7 @@
     const novoStatus = seletor.value;
     const statusAnterior = item.status;
 
-    if (novoStatus === statusAnterior) {
-      return;
-    }
-
-    // Não permite mudanças fora das regras.
+    if (novoStatus === statusAnterior) return;
 
     if (!podeAlterar(statusAnterior, novoStatus)) {
       seletor.value = statusAnterior;
@@ -143,12 +151,7 @@
       return;
     }
 
-    // Evita alterações simultâneas.
-
-    if (
-      salvandoId !== null ||
-      removendoId !== null
-    ) {
+    if (salvandoId !== null || removendoId !== null) {
       seletor.value = statusAnterior;
       return;
     }
@@ -160,77 +163,43 @@
     aviso = '';
 
     try {
-      const atualizado = await requisicao(
-        `/estante/${obraId}`,
-        {
-          metodo: 'PATCH',
-          dados: {
-            status: novoStatus
-          }
-        }
-      );
-
-      const statusSalvo =
-        atualizado?.status || novoStatus;
-
-      // Atualiza os cards sem recarregar a página.
-
-      itens = itens.map((registro) => {
-        if (registro.obra.id === obraId) {
-          return {
-            ...registro,
-            status: statusSalvo
-          };
-        }
-
-        return registro;
+      const atualizado = await requisicao(`/estante/${obraId}`, {
+        metodo: 'PATCH',
+        dados: { status: novoStatus }
       });
 
-      // Mensagem específica para releitura.
+      const statusSalvo = atualizado?.status || novoStatus;
 
-      if (
-        statusAnterior === 'Lido' &&
-        novoStatus === 'Lendo'
-      ) {
-        aviso =
-          `Releitura de "${item.obra.titulo}" iniciada!`;
+      itens = itens.map((registro) =>
+        registro.obra.id === obraId
+          ? { ...registro, status: statusSalvo }
+          : registro
+      );
+
+      if (statusAnterior === 'Lido' && novoStatus === 'Lendo') {
+        aviso = `Releitura de "${item.obra.titulo}" iniciada!`;
       } else {
         aviso =
           `Status de "${item.obra.titulo}" ` +
           `alterado para "${statusSalvo}".`;
       }
-
     } catch (falha) {
-      // Se o backend falhar, retorna ao status anterior.
-
       seletor.value = statusAnterior;
 
-      erro =
-        'Não foi possível salvar o status: ' +
-        falha.message;
-
+      erro = 'Não foi possível salvar o status: ' + falha.message;
     } finally {
       salvandoId = null;
     }
   }
 
-  // Remover uma obra da estante.
-
   async function remover(obra) {
-    if (
-      salvandoId !== null ||
-      removendoId !== null
-    ) {
-      return;
-    }
+    if (salvandoId !== null || removendoId !== null) return;
 
     const confirmou = window.confirm(
       `Deseja remover "${obra.titulo}" da sua estante?`
     );
 
-    if (!confirmou) {
-      return;
-    }
+    if (!confirmou) return;
 
     removendoId = obra.id;
 
@@ -238,23 +207,13 @@
     aviso = '';
 
     try {
-      await requisicao(
-        `/estante/${obra.id}`,
-        {
-          metodo: 'DELETE'
-        }
-      );
+      await requisicao(`/estante/${obra.id}`, { metodo: 'DELETE' });
 
-      itens = itens.filter(
-        (item) => item.obra.id !== obra.id
-      );
+      itens = itens.filter((item) => item.obra.id !== obra.id);
 
-      aviso =
-        `"${obra.titulo}" foi removida da estante.`;
-
+      aviso = `"${obra.titulo}" foi removida da estante.`;
     } catch (falha) {
       erro = falha.message;
-
     } finally {
       removendoId = null;
     }
@@ -272,9 +231,7 @@
   <!-- Perfil do usuário -->
 
   {#if perfil}
-
     <section class="painel-perfil">
-
       <div class="avatar">
         {(perfil.nome_perfil ||
           perfil.nome_usuario ||
@@ -282,199 +239,152 @@
       </div>
 
       <div class="dados-perfil">
-
         <h2>
-          {perfil.nome_perfil ||
-            perfil.nome_usuario ||
-            'Colecionador'}
+          {perfil.nome_perfil || perfil.nome_usuario || 'Colecionador'}
         </h2>
 
-        <p>
-          ✦ PERFIL DO COLECIONADOR
-        </p>
-
+        {#if redes.length}
+          <div class="redes" aria-label="Redes sociais">
+            {#each redes as rede (rede.chave)}
+              {#if rede.href}
+                <a
+                  class={`rede ${rede.chave}`}
+                  href={rede.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span aria-hidden="true">{rede.icone}</span>
+                  {rede.texto}
+                </a>
+              {:else}
+                <span class={`rede ${rede.chave}`}>
+                  <span aria-hidden="true">{rede.icone}</span>
+                  {rede.texto}
+                </span>
+              {/if}
+            {/each}
+          </div>
+        {:else}
+          <p>✦ PERFIL DO COLECIONADOR</p>
+        {/if}
       </div>
-
     </section>
-
   {/if}
 
-  <!-- Título da página -->
-
-  <p class="subtitulo">
-    ✦ SUA COLEÇÃO PESSOAL ✦
-  </p>
+  <p class="subtitulo">✦ SUA COLEÇÃO PESSOAL ✦</p>
 
   <h1>MINHA ESTANTE</h1>
 
   <p class="descricao">
-    Organize seus mangás e HQs com um status
-    de leitura por obra.
+    Organize seus mangás e HQs com um status de leitura por obra.
   </p>
 
-  <!-- Filtros superiores -->
-
-  <div
-    class="filtros-estante"
-    aria-label="Filtrar por status"
-  >
-
+  <div class="filtros-estante" aria-label="Filtrar por status">
     {#each filtros as opcao (opcao)}
-
       <button
         type="button"
         class:ativo={filtro === opcao}
-        onclick={() => filtro = opcao}
+        onclick={() => (filtro = opcao)}
       >
-
         {opcao.toUpperCase()}
 
-        <span class="contador">
-          {quantidade(opcao)}
-        </span>
-
+        <span class="contador">{quantidade(opcao)}</span>
       </button>
-
     {/each}
-
   </div>
 
-  <!-- Mensagens -->
-
   {#if aviso}
-
-    <p
-      class="mensagem sucesso"
-      role="status"
-    >
-      {aviso}
-    </p>
-
+    <p class="mensagem sucesso" role="status">{aviso}</p>
   {/if}
 
   {#if erro}
-
-    <p
-      class="mensagem falha"
-      role="alert"
-    >
-      {erro}
-    </p>
-
+    <p class="mensagem falha" role="alert">{erro}</p>
   {/if}
 
-  <!-- Carregamento -->
-
   {#if carregando}
-
-    <div class="estado-vazio">
-      Carregando sua estante...
-    </div>
+    <div class="estado-vazio">Carregando sua estante...</div>
 
   {:else if !autenticado}
-
     <div class="estado-vazio">
+      <p>Faça login para visualizar sua estante.</p>
 
-      <p>
-        Faça login para visualizar sua estante.
-      </p>
-
-      <a
-        class="botao-catalogo"
-        href="/login"
-      >
-        FAZER LOGIN
-      </a>
-
+      <a class="botao-catalogo" href="/login">FAZER LOGIN</a>
     </div>
 
   {:else if itensFiltrados.length === 0}
-
     <div class="estado-vazio">
+      <p>Nenhuma obra encontrada neste filtro.</p>
 
-      <p>
-        Nenhuma obra encontrada neste filtro.
-      </p>
-
-      <a
-        class="botao-catalogo"
-        href="/catalogo"
-      >
-        EXPLORAR CATÁLOGO →
-      </a>
-
+      <a class="botao-catalogo" href="/catalogo">EXPLORAR CATÁLOGO →</a>
     </div>
 
   {:else}
-
-    <!-- Grade de obras -->
-
-    <section
-      class="grade-estante"
-      aria-label="Obras da minha estante"
-    >
+    <section class="grade-estante" aria-label="Obras da minha estante">
 
       {#each itensFiltrados as item (item.id)}
-
-        <article class="cartao-estante">
-
-          <!-- Capa da obra -->
+        <article
+          class="cartao-estante"
+          class:s-quero-ler={item.status === 'Quero Ler'}
+          class:s-lendo={item.status === 'Lendo'}
+          class:s-lido={item.status === 'Lido'}
+          class:s-pausado={item.status === 'Pausado'}
+        >
 
           <a
             class="capa-obra"
             href={`/obra/${item.obra.id}`}
             aria-label={`Ver detalhes de ${item.obra.titulo}`}
           >
-
             {#if item.obra.capa_url}
-
               <img
                 src={item.obra.capa_url}
                 alt={`Capa de ${item.obra.titulo}`}
                 loading="lazy"
               />
-
             {:else}
-
-              <div class="capa-ausente">
-                CAPA INDISPONÍVEL
-              </div>
-
+              <div class="capa-ausente">CAPA INDISPONÍVEL</div>
             {/if}
 
-            <!-- Tipo da obra -->
+            <span class="etiqueta-status">{nomeDaEtiqueta(item.status)}</span>
 
             <span
               class="tipo-obra"
               class:hq={item.obra.tipo_obra === 'HQ'}
             >
-              {item.obra.tipo_obra === 'HQ'
-                ? 'HQ'
-                : 'MANGÁ'}
+              {item.obra.tipo_obra === 'HQ' ? 'HQ' : 'MANGÁ'}
             </span>
-
           </a>
-
-          <!-- Informações -->
 
           <div class="conteudo-cartao">
 
-            <h3>
-              {item.obra.titulo}
-            </h3>
+            <h3>{item.obra.titulo}</h3>
 
             <p class="editora">
-              {item.obra.editora ||
-                'Editora não informada'}
+              {item.obra.editora || 'Editora não informada'}
             </p>
+
+            <!-- Progresso -->
+
+            <div class="progresso">
+              <div class="progresso-linha">
+                <span>PROGRESSO</span>
+                <strong>{Math.round(porcentagem(item))}%</strong>
+              </div>
+
+              <div class="trilha">
+                <div style:width={`${porcentagem(item)}%`}></div>
+              </div>
+
+              <small>
+                {item.volumes_lidos ?? 0}/{item.obra.total_volumes ?? 0}
+                {unidade(item)}
+              </small>
+            </div>
 
             <!-- Status de leitura -->
 
             <div class="area-status">
-
-              <label for={`status-${item.obra.id}`}>
-                ✦ STATUS DA LEITURA
-              </label>
+              <label for={`status-${item.obra.id}`}>✦ STATUS DA LEITURA</label>
 
               <select
                 id={`status-${item.obra.id}`}
@@ -484,91 +394,59 @@
                 class:lido={item.status === 'Lido'}
                 class:pausado={item.status === 'Pausado'}
                 value={item.status}
-                disabled={
-                  salvandoId !== null ||
-                  removendoId !== null
-                }
-                onchange={(evento) =>
-                  alterarEtiqueta(item, evento)
-                }
+                disabled={salvandoId !== null || removendoId !== null}
+                onchange={(evento) => alterarEtiqueta(item, evento)}
               >
-
                 {#each etiquetas as etiqueta (etiqueta)}
-
                   <option
                     value={etiqueta}
-                    disabled={
-                      !podeAlterar(item.status, etiqueta)
-                    }
+                    disabled={!podeAlterar(item.status, etiqueta)}
                   >
-
-                    {etiqueta === 'Lendo' &&
-                    item.status === 'Lido'
+                    {etiqueta === 'Lendo' && item.status === 'Lido'
                       ? 'LENDO — RELEITURA'
                       : nomeDaEtiqueta(etiqueta)}
-
                   </option>
-
                 {/each}
-
               </select>
 
               {#if salvandoId === item.obra.id}
-
-                <p
-                  class="salvando"
-                  role="status"
-                >
-                  Salvando status...
-                </p>
-
+                <p class="salvando" role="status">Salvando status...</p>
               {/if}
 
               {#if item.status === 'Lido'}
-
-                <p class="ajuda-status">
-                  Você pode iniciar uma releitura.
-                </p>
-
+                <p class="ajuda-status">Você pode iniciar uma releitura.</p>
               {/if}
-
             </div>
 
-            <!-- Ações inferiores -->
+            <!-- Ações -->
 
             <div class="acoes-cartao">
-
               <a
-                class="ver-detalhes"
-                href={`/obra/${item.obra.id}`}
+                class="botao-checklist"
+                href={`/obra/${item.obra.id}/checklist`}
               >
+                ☑ VER CHECKLIST
+              </a>
+
+              <a class="ver-detalhes" href={`/obra/${item.obra.id}`}>
                 VER DETALHES →
               </a>
 
               <button
                 class="remover"
                 type="button"
-                disabled={
-                  removendoId !== null ||
-                  salvandoId !== null
-                }
+                disabled={removendoId !== null || salvandoId !== null}
                 onclick={() => remover(item.obra)}
               >
-                {removendoId === item.obra.id
-                  ? 'REMOVENDO...'
-                  : 'REMOVER'}
+                {removendoId === item.obra.id ? 'REMOVENDO...' : '🗑 REMOVER'}
               </button>
-
             </div>
 
           </div>
-
         </article>
-
       {/each}
 
     </section>
-
   {/if}
 
 </main>
@@ -606,15 +484,58 @@
     font: 25px 'Bangers', Impact, sans-serif;
   }
 
+  .dados-perfil {
+    min-width: 0;
+  }
+
   .dados-perfil h2 {
     margin: 0;
     font: 27px 'Bangers', Impact, sans-serif;
+    overflow-wrap: anywhere;
   }
 
   .dados-perfil p {
     margin: 4px 0 0;
     font-size: 11px;
     color: #94879b;
+  }
+
+  .redes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 7px;
+  }
+
+  .rede {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border: 2px solid #292033;
+    border-radius: 6px;
+    box-shadow: 2px 2px #292033;
+    color: white;
+    font: 12px 'Nunito Sans', Arial, sans-serif;
+    font-weight: 800;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .rede.instagram {
+    background: #ff416b;
+  }
+
+  .rede.discord {
+    background: #6652ed;
+  }
+
+  .rede.x {
+    background: #292033;
+  }
+
+  a.rede:hover {
+    transform: translateY(-1px);
   }
 
   /* Título */
@@ -638,7 +559,7 @@
     margin: 0 0 24px;
   }
 
-  /* Filtros superiores */
+  /* Filtros */
 
   .filtros-estante {
     display: flex;
@@ -675,14 +596,14 @@
 
   .grade-estante {
     display: grid;
-    grid-template-columns: repeat(
-      4,
-      minmax(0, 1fr)
-    );
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 22px;
   }
 
   .cartao-estante {
+    --cor: #05bff2;
+    --cor-texto: #292033;
+
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -691,6 +612,26 @@
     border: 3px solid #292033;
     border-radius: 12px;
     box-shadow: 5px 6px #292033;
+  }
+
+  .cartao-estante.s-quero-ler {
+    --cor: #823cf2;
+    --cor-texto: white;
+  }
+
+  .cartao-estante.s-lendo {
+    --cor: #05bff2;
+    --cor-texto: #292033;
+  }
+
+  .cartao-estante.s-lido {
+    --cor: #ff456b;
+    --cor-texto: white;
+  }
+
+  .cartao-estante.s-pausado {
+    --cor: #dac4ff;
+    --cor-texto: #292033;
   }
 
   /* Capa */
@@ -702,6 +643,7 @@
     position: relative;
     background: #e9dfed;
     overflow: hidden;
+    border-bottom: 3px solid #292033;
   }
 
   .capa-obra img {
@@ -720,17 +662,38 @@
     font: 20px 'Bangers', Impact, sans-serif;
   }
 
+  .etiqueta-status,
   .tipo-obra {
     position: absolute;
-    right: 10px;
     top: 10px;
-    padding: 5px 9px;
-    background: #00bdf3;
+    padding: 4px 8px;
     border: 2px solid #292033;
     border-radius: 6px;
     box-shadow: 2px 2px #292033;
+    font: 14px 'Bangers', Impact, sans-serif;
     color: #292033;
-    font: 15px 'Bangers', Impact, sans-serif;
+  }
+
+  .etiqueta-status {
+    left: 10px;
+    background: #ffda0d;
+  }
+
+  .s-lendo .etiqueta-status {
+    background: #08bdf0;
+  }
+
+  .s-lido .etiqueta-status {
+    background: #b3e8c0;
+  }
+
+  .s-pausado .etiqueta-status {
+    background: #dac4ff;
+  }
+
+  .tipo-obra {
+    right: 10px;
+    background: #00bdf3;
   }
 
   .tipo-obra.hq {
@@ -760,34 +723,66 @@
     color: #978b9c;
   }
 
-  /* Menu de seleção */
+  /* Progresso */
+
+  .progresso-linha {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font: 14px 'Bangers', Impact, sans-serif;
+  }
+
+  .progresso-linha strong {
+    color: var(--cor);
+    font-weight: 400;
+  }
+
+  .trilha {
+    height: 12px;
+    border: 2px solid #292033;
+    border-radius: 6px;
+    background: #ece6ee;
+    overflow: hidden;
+  }
+
+  .trilha div {
+    height: 100%;
+    background: var(--cor);
+    transition: width 0.3s;
+  }
+
+  .progresso small {
+    display: block;
+    margin-top: 3px;
+    color: #978b9c;
+    font-size: 11px;
+  }
+
+  /* Status */
 
   .area-status {
-    margin-top: 8px;
-    padding-top: 13px;
+    padding-top: 12px;
     border-top: 1px solid #dfd3dd;
   }
 
   .area-status label {
     display: block;
-    margin-bottom: 9px;
+    margin-bottom: 8px;
     color: #823cf2;
-    font: 18px 'Bangers', Impact, sans-serif;
+    font: 17px 'Bangers', Impact, sans-serif;
   }
 
   .seletor-status {
     width: 100%;
-    min-height: 43px;
-    padding: 10px 12px;
+    min-height: 42px;
+    padding: 9px 12px;
     border: 2px solid #292033;
     border-radius: 7px;
     box-shadow: 3px 3px #292033;
     color: #292033;
-    font: 18px 'Bangers', Impact, sans-serif;
+    font: 17px 'Bangers', Impact, sans-serif;
     cursor: pointer;
   }
-
-  /* Cores das etiquetas */
 
   .seletor-status.quero-ler {
     background: #ffda0d;
@@ -806,41 +801,62 @@
   }
 
   .seletor-status:disabled {
-    opacity: .65;
+    opacity: 0.65;
     cursor: wait;
   }
 
   .ajuda-status,
   .salvando {
-    margin: 9px 0 0;
+    margin: 8px 0 0;
     font-size: 11px;
     color: #766882;
   }
 
-  /* Botões inferiores */
+  /* Ações */
 
   .acoes-cartao {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    gap: 9px;
     margin-top: auto;
-    padding-top: 18px;
+    padding-top: 8px;
+  }
+
+  .botao-checklist {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 9px 6px;
+    background: var(--cor);
+    color: var(--cor-texto);
+    border: 3px solid #292033;
+    border-radius: 8px;
+    box-shadow: 3px 4px #292033;
+    font: 17px 'Bangers', Impact, sans-serif;
+    text-align: center;
+  }
+
+  .botao-checklist:hover {
+    transform: translateY(-1px);
   }
 
   .ver-detalhes {
+    align-self: flex-start;
     color: #823cf2;
-    font: 16px 'Bangers', Impact, sans-serif;
+    font: 15px 'Bangers', Impact, sans-serif;
     text-decoration: underline;
   }
 
   .remover {
-    padding: 7px 10px;
+    width: 100%;
+    padding: 8px 10px;
     background: #fff9f2;
-    border: 2px solid #292033;
-    border-radius: 6px;
+    color: #ff426a;
+    border: 2px solid #ff426a;
+    border-radius: 7px;
     cursor: pointer;
-    font: 15px 'Bangers', Impact, sans-serif;
+    font: 16px 'Bangers', Impact, sans-serif;
   }
 
   .remover:hover:not(:disabled) {
@@ -891,19 +907,13 @@
 
   @media (max-width: 1000px) {
     .grade-estante {
-      grid-template-columns: repeat(
-        3,
-        minmax(0, 1fr)
-      );
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 
   @media (max-width: 760px) {
     .grade-estante {
-      grid-template-columns: repeat(
-        2,
-        minmax(0, 1fr)
-      );
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 15px;
     }
   }

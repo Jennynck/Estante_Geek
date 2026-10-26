@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import Cabecalho from '$lib/Cabecalho.svelte';
+  import Resenhas from '$lib/Resenhas.svelte';
   import { obterToken, requisicao } from '$lib/api.js';
 
   let { id } = $props();
@@ -159,7 +160,7 @@
 
   let nota = $derived(
     typeof obra?.media_notas === 'number'
-      ? obra.media_notas
+      ? obra.media_notas / 2
       : null
   );
 
@@ -465,6 +466,13 @@
             ✓ ADICIONADO À ESTANTE
           </span>
 
+          <a
+            class="botao-comic azul"
+            href={`/obra/${obra.id}/checklist`}
+          >
+            ☑ VER CHECKLIST
+          </a>
+
         {:else}
 
           <button
@@ -570,11 +578,11 @@
 
             <span
               class="estrelas"
-              aria-label={`Nota média ${nota} de 10`}
+              aria-label={`Nota média ${nota} de 5`}
             >
               {'★'.repeat(Math.round(nota / 2))}
               {'☆'.repeat(
-                5 - Math.round(nota / 2)
+                5 - Math.round(nota)
               )}
             </span>
 
@@ -583,7 +591,7 @@
             </strong>
 
             <small>
-              / 10 ·
+              / 5 ·
               {obra.total_avaliacoes || 0}
               avaliações
             </small>
@@ -758,6 +766,8 @@
       </p>
 
     </section>
+
+    <Resenhas obraId={obra.id} {naEstante} />
 
   {/if}
 
