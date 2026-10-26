@@ -90,7 +90,7 @@
       {#if remover}
         <a
           class="botao-primario botao-azul"
-          href={`/obra/${obra.id}`}
+          href={`/obra/${obra.id}/checklist`}
         >
           VER CHECKLIST
         </a>
