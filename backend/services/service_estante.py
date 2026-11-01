@@ -85,7 +85,7 @@ class EstanteService:
         db.delete(registro)
         db.commit()
 
-    # Checklist: considera possuídos só os volumes marcados e faltantes os demais (RF06 e RN08)
+    # Checklist: considera lidos só os volumes marcados e não lidos os demais
     @staticmethod
     def checklist(db: Session, usuario_id: int, obras_id: int) -> ChecklistObra:
         registro = EstanteService._buscarRegistro(db, usuario_id, obras_id)
@@ -96,19 +96,18 @@ class EstanteService:
             .order_by(Volume.numero_volume)))
 
         total = len(linhas)
-        possuidos = sum(1 for l in linhas if l.possui_volume)
         lidos = sum(1 for l in linhas if l.lido is True)
         obra = CatalogoService.montar(db, [registro.obra])[0]
         obra.na_estante = True
         return ChecklistObra(
-            obra=obra, status=registro.status, total_volumes=total, possuidos=possuidos,
-            faltantes=total - possuidos, lidos=lidos, progresso=calcularProgresso(lidos, total),
+            obra=obra, status=registro.status, total_volumes=total, lidos=lidos, 
+            progresso=calcularProgresso(lidos, total),
             volumes=[UsuarioVolumeResponse.model_validate(l) for l in linhas])
 
-    # Marcar ou desmarcar o volume atualiza o checklist (RN11). O status segue as transições de RN07
+    # Marcar ou desmarcar o volume atualiza o checklist. O status segue as transições de RN07
     @staticmethod
     def atualizarVolume(db: Session, usuario_id: int, obras_id: int, volumes_id: int,
-                         possui_volume: bool | None, lido: bool | None) -> UsuarioVolume:
+                         lido: bool | None) -> UsuarioVolume:
         EstanteService._buscarRegistro(db, usuario_id, obras_id)
         linha = db.scalar(
             select(UsuarioVolume).join(UsuarioVolume.volume)
@@ -119,8 +118,6 @@ class EstanteService:
 
         if lido is not None:
             linha.lido = lido 
-        if possui_volume is not None:
-            linha.possui_volume = possui_volume
         db.commit()
         return linha
 

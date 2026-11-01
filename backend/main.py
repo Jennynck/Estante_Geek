@@ -99,8 +99,7 @@ def verChecklist(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
 @app.patch("/estante/{obras_id}/volumes/{volumes_id}", response_model=UsuarioVolumeResponse)
 def atualizarVolume(obras_id: int, volumes_id: int, dados: UsuarioVolumeUpdate,
                      usuario: Usuario = Depends(usuarioLogado), db: Session = Depends(get_db)):
-    return EstanteService.atualizarVolume(db, usuario.id, obras_id, volumes_id,
-                                           dados.possui_volume, dados.lido)
+    return EstanteService.atualizarVolume(db, usuario.id, obras_id, volumes_id, dados.lido)
 
 
 # ---------- Resenha ----------

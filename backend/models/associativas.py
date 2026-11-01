@@ -38,14 +38,13 @@ class UsuarioObra(Base):
     obra: Mapped["Obra"] = relationship(back_populates="usuarios")
 
 class UsuarioVolume(Base):
-    """Situação de cada volume para o usuário (possui? já leu?)."""
+    """Situação de cada volume para o usuário (já leu?)"""
     __tablename__ = "usuario_volumes"
     __table_args__ = (
         UniqueConstraint("usuarios_id", "volumes_id", name="uq_usuario_volumes"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    possui_volume: Mapped[bool] = mapped_column(Boolean, default=False)
     lido: Mapped[bool] = mapped_column(Boolean, default=False)
     
     usuarios_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"))
