@@ -1,6 +1,6 @@
-from datetime import datetime
-from sqlalchemy import (Boolean, DateTime, Enum, ForeignKey, LargeBinary,
-                        String, Text, UniqueConstraint, func)
+from datetime import date
+from sqlalchemy import (Boolean, Date, Enum, ForeignKey, LargeBinary,
+                        String, Text, UniqueConstraint)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models.base import Base, TipoObra
 
@@ -55,7 +55,7 @@ class Obra(Base):
     tipo_obra: Mapped[TipoObra] = mapped_column(Enum(TipoObra))
     # unique evita salvar a mesma obra duas vezes
     api_url: Mapped[str] = mapped_column(String(250), unique=True)
-    data_publicacao: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    data_publicacao: Mapped[date | None] = mapped_column(Date)
     editoras_id: Mapped[int | None] = mapped_column(ForeignKey("editoras.id"))
 
     editora: Mapped["Editora | None"] = relationship(back_populates="obras")
@@ -85,7 +85,7 @@ class Volume(Base):
     sinopse: Mapped[str | None] = mapped_column(Text)
     numero_volume: Mapped[int]
     capa_url: Mapped[str | None] = mapped_column(String(250))
-    data_publicacao: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    data_publicacao: Mapped[date | None] = mapped_column(Date)
     obras_id: Mapped[int] = mapped_column(ForeignKey("obras.id", ondelete="CASCADE"))
 
     obra: Mapped["Obra"] = relationship(back_populates="volumes")

@@ -3,7 +3,7 @@ import httpx
 import os
 import re
 import time
-from datetime import datetime
+from datetime import date
 from models.base import TipoObra
 from schemas.obra_api import ObraAPI
 
@@ -80,7 +80,7 @@ class ComicVineService:
     def _mapear(item: dict) -> ObraAPI:
         imagem = item.get("image") or {}
         ano = str(item.get("start_year") or "")[:4]
-        data = datetime(int(ano), 1, 1) if ano.isdigit() and int(ano) > 0 else None  # só vem o ano
+        data = date(int(ano), 1, 1) if ano.isdigit() and int(ano) > 0 else None  # só vem o ano
         return ObraAPI(
             titulo=item["name"],
             sinopse=limparHtml(item.get("description")) or item.get("deck"),

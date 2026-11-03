@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 from pydantic import BaseModel
 from models.base import TipoObra
 
@@ -12,4 +12,4 @@ class ObraAPI(BaseModel):
     total_volumes: int | None = None
     editora: str | None = None
     generos: list[str] = []
-    data_publicacao: datetime | None = None
+    data_publicacao: date | None = None

@@ -1,7 +1,7 @@
 import httpx
 import os
 import time
-from datetime import datetime
+from datetime import date
 from models.base import TipoObra
 from schemas.obra_api import ObraAPI
 
@@ -55,6 +55,6 @@ class TenraiService:
             capa_url=imagens.get("large_image_url") or imagens.get("image_url"),
             tipo_obra=TipoObra.MANGA,
             api_url=item.get("url") or f"https://myanimelist.net/manga/{item['mal_id']}",
-            data_publicacao=datetime.strptime(inicio[:10], "%Y-%m-%d") if inicio else None,
+            data_publicacao=date.fromisoformat(inicio[:7] + "-01") if inicio else None,
             generos=[g["name"] for g in item.get("genres") or []],
             total_volumes=item.get("volumes"))

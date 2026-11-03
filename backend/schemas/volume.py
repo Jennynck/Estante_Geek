@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 from pydantic import BaseModel, ConfigDict
 # os dados vem das APIs e o usuário só consulta
 class VolumeResponse(BaseModel):
@@ -9,4 +9,4 @@ class VolumeResponse(BaseModel):
     titulo_volume: str
     sinopse: str | None = None
     capa_url: str | None = None
-    data_publicacao: datetime | None = None
+    data_publicacao: date | None = None

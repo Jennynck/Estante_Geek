@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 from pydantic import BaseModel, ConfigDict, Field
 from models.base import StatusLeitura
 from schemas.obra import ObraCatalogo
@@ -17,7 +17,7 @@ class UsuarioObraResponse(BaseModel):
     status: StatusLeitura
     nota: int | None = None
     resenha: str | None = None
-    data_publicacao: datetime
+    data_publicacao: date
     volumes_lidos: int = 0   # volumes com status Lido
     progresso: float = 0.0   # volumes_lidos / total_volumes * 100
 
@@ -37,7 +37,7 @@ class ResenhaResponse(BaseModel):
     usuario: AutorResenha
     nota: int | None = None
     resenha: str | None = None
-    data_publicacao: datetime
+    data_publicacao: date
 
 # Resenhas da obra com a média das notas
 class ResenhasObra(BaseModel):

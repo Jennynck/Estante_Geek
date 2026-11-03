@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 from pydantic import BaseModel, ConfigDict, Field
 from models.base import StatusLeitura, TipoObra
 from schemas.volume import VolumeResponse
@@ -11,7 +11,7 @@ class ObraResponse(BaseModel):
     capa_url: str | None = None
     tipo_obra: TipoObra
     total_volumes: int
-    data_publicacao: datetime
+    data_publicacao: date | None = None
     api_url: str
 
 # importa uma obra para o banco a partir do id dela na API

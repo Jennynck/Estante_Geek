@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import date
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, contains_eager, joinedload
@@ -71,7 +71,10 @@ class EstanteService:
     # Cada obra tem um único status por usuário, o novo substitui o anterior (RN14)
     @staticmethod
     def atualizarStatus(db: Session, usuario_id: int, obras_id: int, status: StatusLeitura) -> UsuarioObraResponse:
-        EstanteService._buscarRegistro(db, usuario_id, obras_id).status = status
+        registro = EstanteService._buscarRegistro(db, usuario_id, obras_id)
+        if status != registro.status and status not in TRANSICOES[registro.status]:
+            raise HTTPException(400, f'Não é permitido mudar de "{registro.status.value}" para "{status.value}"')
+        registro.status = status
         db.commit()
         return EstanteService.listar(db, usuario_id, obras_id)[0]
 
@@ -131,7 +134,7 @@ class EstanteService:
 
         registro.nota = dados.nota
         registro.resenha = dados.resenha or None
-        registro.data_publicacao = datetime.now()   # data em que a resenha foi publicada
+        registro.data_publicacao = date.today()   # data em que a resenha foi publicada
         db.commit()
         return registro
 
