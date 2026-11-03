@@ -1,8 +1,7 @@
-from datetime import datetime
+from datetime import date
 from sqlalchemy import (
-    Boolean, CheckConstraint, Column, DateTime, Enum, ForeignKey, String, Table,
-    UniqueConstraint, func,
-)
+    Boolean, CheckConstraint, Column, Date, Enum, ForeignKey, String, Table,
+    UniqueConstraint, func,)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models.base import Base, StatusLeitura, valores_enum
 
@@ -11,16 +10,14 @@ obra_generos = Table(
     "obra_generos",
     Base.metadata,
     Column("obras_id", ForeignKey("obras.id", ondelete="CASCADE"), primary_key=True),
-    Column("generos_id", ForeignKey("generos.id", ondelete="CASCADE"), primary_key=True),
-)
+    Column("generos_id", ForeignKey("generos.id", ondelete="CASCADE"), primary_key=True))
 
 class UsuarioObra(Base):
     """Obra na estante do usuário (com status, nota e resenha)."""
     __tablename__ = "usuarios_obras"
     __table_args__ = (
         UniqueConstraint("usuarios_id", "obras_id", name="uq_usuarios_obras"),
-        CheckConstraint("nota >= 1 AND nota <= 10", name="ck_usuarios_obras_nota"),
-    )
+        CheckConstraint("nota >= 1 AND nota <= 10", name="ck_usuarios_obras_nota"))
 
     id: Mapped[int] = mapped_column(primary_key=True)
     nota: Mapped[int | None]
@@ -30,7 +27,7 @@ class UsuarioObra(Base):
              values_callable=valores_enum),
         default=StatusLeitura.QUERO_LER,
     )
-    data_publicacao: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    data_publicacao: Mapped[date] = mapped_column(Date, server_default=func.now())
     usuarios_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"))
     obras_id: Mapped[int] = mapped_column(ForeignKey("obras.id", ondelete="CASCADE"))
 
