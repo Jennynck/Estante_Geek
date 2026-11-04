@@ -28,6 +28,9 @@ class TokenResponse(BaseModel):
 class ConfirmarEmail(BaseModel):
     token: str
 
+class ReenviarConfirmacao(BaseModel):
+    email: EmailStr
+
 class EsqueciSenha(BaseModel):
     email: EmailStr
 

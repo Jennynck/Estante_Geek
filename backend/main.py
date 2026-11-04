@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -6,7 +6,8 @@ from database import engine, get_db
 from models import Base, Usuario
 from models.base import TipoObra
 from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar
-from schemas.usuario import TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse
+from schemas.usuario import (ConfirmarEmail, MensagemResponse, ReenviarConfirmacao,
+                             TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse)
 from schemas.usuario_obra import (
     ResenhaCreate, ResenhaResponse, ResenhasObra, UsuarioObraCreate, UsuarioObraResponse,
     UsuarioObraUpdate,)
@@ -40,8 +41,23 @@ def importarObra(dados: ObraImportar, usuario: Usuario = Depends(usuarioLogado),
 
 # ---------- Autenticação e perfil ----------
 @app.post("/auth/cadastro", response_model=UsuarioResponse, status_code=201)
-def cadastrar(dados: UsuarioCreate, db: Session = Depends(get_db)):
-    return UsuarioService.cadastrar(db, dados)
+def cadastrar(dados: UsuarioCreate, tarefas: BackgroundTasks, db: Session = Depends(get_db)):
+    usuario = UsuarioService.cadastrar(db, dados)
+    tarefas.add_task(UsuarioService.enviarConfirmacao, usuario.id, usuario.email, usuario.nome_usuario)
+    return usuario
+
+@app.post("/auth/confirmar-email", response_model=MensagemResponse)
+def confirmarEmail(dados: ConfirmarEmail, db: Session = Depends(get_db)):
+    UsuarioService.confirmarEmail(db, dados.token)
+    return MensagemResponse(mensagem="E-mail confirmado com sucesso! Agora você já pode fazer login")
+
+@app.post("/auth/reenviar-confirmacao", response_model=MensagemResponse)
+def reenviarConfirmacao(dados: ReenviarConfirmacao, tarefas: BackgroundTasks,
+                        db: Session = Depends(get_db)):
+    usuario = UsuarioService.pendenteDeConfirmacao(db, dados.email)
+    if usuario:
+        tarefas.add_task(UsuarioService.enviarConfirmacao, usuario.id, usuario.email, usuario.nome_usuario)
+    return MensagemResponse(mensagem="Se o e-mail estiver cadastrado e pendente, enviamos um novo link")
 
 @app.post("/auth/login", response_model=TokenResponse)
 def login(dados: UsuarioLogin, db: Session = Depends(get_db)):
