@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from models import Usuario
-from schemas.usuario import UsuarioCreate, UsuarioLogin
+from schemas.usuario import UsuarioCreate, UsuarioLogin, UsuarioUpdate
 from services.service_email import EmailError, EmailService
 
 log = logging.getLogger(__name__)
@@ -39,21 +39,7 @@ class UsuarioService:
         db.commit()
         return usuario
 
-    # A conta só pode entrar depois de confirmar o e-mail
-    @staticmethod
-    def login(db: Session, dados: UsuarioLogin) -> dict:
-        usuario = db.scalar(select(Usuario).where(Usuario.email == dados.email.lower()))
-        if not usuario or not senhaConfere(dados.senha, usuario.senha):
-            raise HTTPException(401, "E-mail ou senha incorretos")
-        if not usuario.email_confirmado:
-            raise HTTPException(403, "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.")
-
-        expira = datetime.now(timezone.utc) + timedelta(hours=24)
-        token = jwt.encode({"sub": str(usuario.id), "tipo": "acesso", "exp": expira},
-                           SECRET_KEY, algorithm="HS256")
-        return {"access_token": token, "token_type": "bearer"}
-
-    # Só usuários cadastrados e autenticados acessam a estante (RN02)
+    # Só usuários cadastrados e autenticados acessam a estante
     @staticmethod
     def buscarPorToken(db: Session, token: str) -> Usuario:
         try:
@@ -106,3 +92,54 @@ class UsuarioService:
     def pendenteDeConfirmacao(db: Session, email: str) -> Usuario | None:
         usuario = db.scalar(select(Usuario).where(Usuario.email == email.lower()))
         return usuario if usuario and not usuario.email_confirmado else None
+
+# A conta só pode entrar depois de confirmar o e-mail
+    @staticmethod
+    def login(db: Session, dados: UsuarioLogin) -> dict:
+        usuario = db.scalar(select(Usuario).where(Usuario.email == dados.email.lower()))
+        if not usuario or not senhaConfere(dados.senha, usuario.senha):
+            raise HTTPException(401, "E-mail ou senha incorretos")
+        if not usuario.email_confirmado:
+            raise HTTPException(403, "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.")
+
+        expira = datetime.now(timezone.utc) + timedelta(hours=24)
+        token = jwt.encode({"sub": str(usuario.id), "tipo": "acesso", "exp": expira},
+                           SECRET_KEY, algorithm="HS256")
+        return {"access_token": token, "token_type": "bearer"}
+
+# Edição do perfil: só altera o que o usuário enviou (RF11/RN06)
+# Um contato enviado vazio ou null é removido (o schema converte "" em None)
+    @staticmethod
+    def atualizarPerfil(db: Session, usuario: Usuario, dados: UsuarioUpdate) -> Usuario:
+        campos = dados.model_dump(exclude_unset=True)   # ignora o que não foi enviado
+
+        # Estes campos podem ser alterados, mas nunca apagados
+        for obrigatorio in ("nome_perfil", "nome_usuario", "perfil_publico"):
+            if obrigatorio in campos:
+                valor = campos[obrigatorio]
+                if isinstance(valor, str):
+                    valor = campos[obrigatorio] = valor.strip()
+                if valor is None or valor == "":
+                    raise HTTPException(422, f"O campo {obrigatorio} não pode ficar vazio")
+
+        novo_perfil = campos.get("nome_perfil")
+        if novo_perfil and novo_perfil != usuario.nome_perfil:
+            if db.scalar(select(Usuario.id).where(
+                    Usuario.nome_perfil == novo_perfil, Usuario.id != usuario.id)):
+                raise HTTPException(409, "Este nome de perfil já está em uso")
+
+        for campo, valor in campos.items():
+            setattr(usuario, campo, valor)
+        db.commit()
+        db.refresh(usuario)
+        return usuario
+
+# Exclui a conta e em cascata a estante, o checklist e as resenhas (RF17)
+    @staticmethod
+    def excluirConta(db: Session, usuario: Usuario, senha: str) -> None:
+        if usuario.is_admin:
+            raise HTTPException(403, "O administrador não pode excluir a própria conta")
+        if not senhaConfere(senha, usuario.senha):
+            raise HTTPException(403, "Senha incorreta")
+        db.delete(usuario)
+        db.commit()

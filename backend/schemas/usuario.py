@@ -41,6 +41,10 @@ class RedefinirSenha(BaseModel):
 class MensagemResponse(BaseModel):
     mensagem: str
 
+# Exluir conta
+class ExcluirConta(BaseModel):
+    senha: str
+
 # Edição do perfil e da visibilidade
 # Tudo é opcional, só muda o que o usuário enviar (um contato enviado como null é removido)
 class UsuarioUpdate(BaseModel):
