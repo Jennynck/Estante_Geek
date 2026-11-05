@@ -6,7 +6,7 @@ from database import engine, get_db
 from models import Base, Usuario
 from models.base import TipoObra
 from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar
-from schemas.usuario import (ConfirmarEmail, MensagemResponse, ReenviarConfirmacao,
+from schemas.usuario import (ConfirmarEmail, ExcluirConta, MensagemResponse, ReenviarConfirmacao,
                              TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse)
 from schemas.usuario_obra import (
     ResenhaCreate, ResenhaResponse, ResenhasObra, UsuarioObraCreate, UsuarioObraResponse,
@@ -14,7 +14,7 @@ from schemas.usuario_obra import (
 from schemas.usuario_volume import ChecklistObra, UsuarioVolumeResponse, UsuarioVolumeUpdate
 from services.service_catalogo import CatalogoService
 from services.service_estante import EstanteService
-from services.service_usuario import UsuarioService
+from services.service_usuario import UsuarioService, UsuarioUpdate
 
 # Cria as tabelas no banco caso não existam
 Base.metadata.create_all(bind=engine)
@@ -67,6 +67,15 @@ def login(dados: UsuarioLogin, db: Session = Depends(get_db)):
 def meuPerfil(usuario: Usuario = Depends(usuarioLogado)):
     return usuario
 
+@app.patch("/usuarios/me", response_model=UsuarioResponse)
+def atualizarMeuPerfil(dados: UsuarioUpdate, usuario: Usuario = Depends(usuarioLogado),
+                       db: Session = Depends(get_db)):
+    return UsuarioService.atualizarPerfil(db, usuario, dados)
+
+@app.delete("/usuarios/me", status_code=204)
+def excluirMinhaConta(dados: ExcluirConta, usuario: Usuario = Depends(usuarioLogado),
+                      db: Session = Depends(get_db)):
+    UsuarioService.excluirConta(db, usuario, dados.senha)
 
 # ---------- Catálogo ----------
 @app.get("/obras", response_model=list[ObraResponse])
