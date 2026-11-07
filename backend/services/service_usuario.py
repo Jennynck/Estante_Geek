@@ -16,12 +16,23 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY não está configurada no .env")
 FRONTEND_URL = (os.getenv("FRONTEND_URL") or "http://localhost:5173").rstrip("/")
+FOTO_MAX_BYTES = 2 * 1024 * 1024 # 2 MB, tamanho máximo que uma foto deve ter
 
 def gerarHash(senha: str) -> str:
     return bcrypt.hashpw(senha.encode()[:72], bcrypt.gensalt()).decode()
 
 def senhaConfere(senha: str, senha_hash: str) -> bool:
     return bcrypt.checkpw(senha.encode()[:72], senha_hash.encode())
+
+# Descobre o tipo pelo conteúdo do arquivo
+def tipoDaImagem(dados: bytes) -> str | None:
+    if dados.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if dados.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if dados[:4] == b"RIFF" and dados[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 class UsuarioService:
     # A senha é guardada criptografada (RNF01). E-mail e nome de perfil não podem se repetir
@@ -142,4 +153,21 @@ class UsuarioService:
         if not senhaConfere(senha, usuario.senha):
             raise HTTPException(403, "Senha incorreta")
         db.delete(usuario)
+        db.commit()
+
+# Foto de perfil guardada como bytes na coluna foto (BYTEA)
+    @staticmethod
+    def salvarFoto(db: Session, usuario: Usuario, conteudo: bytes) -> None:
+        if not conteudo:
+            raise HTTPException(400, "Arquivo vazio")
+        if len(conteudo) > FOTO_MAX_BYTES:
+            raise HTTPException(413, "A foto deve ter no máximo 2 MB")
+        if not tipoDaImagem(conteudo):
+            raise HTTPException(415, "Envie uma imagem JPEG, PNG ou WebP")
+        usuario.foto = conteudo
+        db.commit()
+
+    @staticmethod
+    def removerFoto(db: Session, usuario: Usuario) -> None:
+        usuario.foto = None
         db.commit()
