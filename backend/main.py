@@ -7,7 +7,7 @@ from models import Base, Usuario
 from models.base import TipoObra
 from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar
 from schemas.usuario import (ConfirmarEmail, ExcluirConta, MensagemResponse, ReenviarConfirmacao,
-                             TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse)
+                             TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse, UsuarioPublico)
 from schemas.usuario_obra import (
     ResenhaCreate, ResenhaResponse, ResenhasObra, UsuarioObraCreate, UsuarioObraResponse,
     UsuarioObraUpdate,)
@@ -95,6 +95,10 @@ def verMinhaFoto(usuario: Usuario = Depends(usuarioLogado)):
 def removerMinhaFoto(usuario: Usuario = Depends(usuarioLogado), db: Session = Depends(get_db)):
     UsuarioService.removerFoto(db, usuario)
 
+@app.get("/usuarios/{usuarios_id}", response_model=UsuarioPublico)
+def verPerfilDeUsuario(usuarios_id: int, usuario: Usuario = Depends(usuarioLogado),
+                       db: Session = Depends(get_db)):
+    return UsuarioService.verPerfil(db, usuarios_id, usuario.id)
 # ---------- Catálogo ----------
 @app.get("/obras", response_model=list[ObraResponse])
 def listarObras(busca: str | None = None, tipo_obra: TipoObra | None = None,

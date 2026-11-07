@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from models import Usuario
-from schemas.usuario import UsuarioCreate, UsuarioLogin, UsuarioUpdate
+from schemas.usuario import UsuarioCreate, UsuarioLogin, UsuarioUpdate, UsuarioPublico
 from services.service_email import EmailError, EmailService
 
 log = logging.getLogger(__name__)
@@ -171,3 +171,17 @@ class UsuarioService:
     def removerFoto(db: Session, usuario: Usuario) -> None:
         usuario.foto = None
         db.commit()
+
+    # Perfil visto por outros usuários. Contatos de perfis privados ficam ocultos (RN06)
+    @staticmethod
+    def verPerfil(db: Session, usuarios_id: int, logado_id: int) -> UsuarioPublico:
+        usuario = db.get(Usuario, usuarios_id)
+        if not usuario:
+            raise HTTPException(404, "Usuário não encontrado")
+
+        mostrar_contatos = usuario.perfil_publico or usuario.id == logado_id
+        return UsuarioPublico(
+            id=usuario.id, nome_perfil=usuario.nome_perfil, perfil_publico=usuario.perfil_publico,
+            instagram=usuario.instagram if mostrar_contatos else None,
+            discord=usuario.discord if mostrar_contatos else None,
+            x=usuario.x if mostrar_contatos else None)
