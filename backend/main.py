@@ -1,4 +1,4 @@
-from fastapi import BackgroundTasks, Depends, FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI, UploadFile, HTTPException, Response, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -14,7 +14,7 @@ from schemas.usuario_obra import (
 from schemas.usuario_volume import ChecklistObra, UsuarioVolumeResponse, UsuarioVolumeUpdate
 from services.service_catalogo import CatalogoService
 from services.service_estante import EstanteService
-from services.service_usuario import UsuarioService, UsuarioUpdate
+from services.service_usuario import FOTO_MAX_BYTES, UsuarioService, UsuarioUpdate, tipoDaImagem
 
 # Cria as tabelas no banco caso não existam
 Base.metadata.create_all(bind=engine)
@@ -76,6 +76,24 @@ def atualizarMeuPerfil(dados: UsuarioUpdate, usuario: Usuario = Depends(usuarioL
 def excluirMinhaConta(dados: ExcluirConta, usuario: Usuario = Depends(usuarioLogado),
                       db: Session = Depends(get_db)):
     UsuarioService.excluirConta(db, usuario, dados.senha)
+
+@app.put("/usuarios/me/foto", status_code=204)
+def enviarMinhaFoto(arquivo: UploadFile = File(...), usuario: Usuario = Depends(usuarioLogado),
+                    db: Session = Depends(get_db)):
+    # lê no máximo 1 byte além do limite, para detectar arquivos grandes sem carregá-los inteiros
+    conteudo = arquivo.file.read(FOTO_MAX_BYTES + 1)
+    UsuarioService.salvarFoto(db, usuario, conteudo)
+
+@app.get("/usuarios/me/foto")
+def verMinhaFoto(usuario: Usuario = Depends(usuarioLogado)):
+    if not usuario.foto:
+        raise HTTPException(404, "Você ainda não tem foto de perfil")
+    return Response(content=usuario.foto,
+                    media_type=tipoDaImagem(usuario.foto) or "application/octet-stream")
+
+@app.delete("/usuarios/me/foto", status_code=204)
+def removerMinhaFoto(usuario: Usuario = Depends(usuarioLogado), db: Session = Depends(get_db)):
+    UsuarioService.removerFoto(db, usuario)
 
 # ---------- Catálogo ----------
 @app.get("/obras", response_model=list[ObraResponse])

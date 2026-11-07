@@ -6,3 +6,4 @@ bcrypt           # senha criptografada
 pyjwt            # token de login
 httpx            # chamadas às APIs Tenrai e Comic Vine
 email-validator  # validação do e-mail (EmailStr)
+python-multipart   # upload de arquivos (foto de perfil)
