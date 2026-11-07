@@ -76,6 +76,7 @@ class UsuarioPublico(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     nome_perfil: str
+    perfil_publico: bool = True
     instagram: str | None = None
     discord: str | None = None
     x: str | None = None
