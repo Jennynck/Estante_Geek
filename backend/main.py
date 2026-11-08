@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import engine, get_db
 from models import Base, Usuario
 from models.base import TipoObra
-from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar
+from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar, ObraCatalogo
 from schemas.usuario import (ConfirmarEmail, ExcluirConta, MensagemResponse, ReenviarConfirmacao,
                              TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse, UsuarioPublico)
 from schemas.usuario_obra import (
@@ -15,6 +15,7 @@ from schemas.usuario_volume import ChecklistObra, UsuarioVolumeResponse, Usuario
 from services.service_catalogo import CatalogoService
 from services.service_estante import EstanteService
 from services.service_usuario import FOTO_MAX_BYTES, UsuarioService, UsuarioUpdate, tipoDaImagem
+from services.service_afinidade import AfinidadeService
 
 # Cria as tabelas no banco caso não existam
 Base.metadata.create_all(bind=engine)
@@ -105,6 +106,12 @@ def verFotoDeUsuario(usuarios_id: int, usuario: Usuario = Depends(usuarioLogado)
                      db: Session = Depends(get_db)):
     foto = UsuarioService.buscarFoto(db, usuarios_id)
     return Response(content=foto, media_type=tipoDaImagem(foto) or "application/octet-stream")
+
+@app.get("/usuarios/{usuarios_id}/obras-em-comum", response_model=list[ObraCatalogo])
+def obrasEmComum(usuarios_id: int, usuario: Usuario = Depends(usuarioLogado),
+                 db: Session = Depends(get_db)):
+    return AfinidadeService.obrasEmComum(db, usuario.id, usuarios_id)
+
 # ---------- Catálogo ----------
 @app.get("/obras", response_model=list[ObraResponse])
 def listarObras(busca: str | None = None, tipo_obra: TipoObra | None = None,
@@ -120,7 +127,6 @@ def detalharObra(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
 def listarResenhas(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
                     db: Session = Depends(get_db)):
     return CatalogoService.resenhas(db, obras_id)
-
 
 # ---------- Estante ----------
 @app.get("/estante", response_model=list[UsuarioObraResponse])
