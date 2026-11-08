@@ -35,7 +35,7 @@ def tipoDaImagem(dados: bytes) -> str | None:
     return None
 
 class UsuarioService:
-    # A senha é guardada criptografada (RNF01). E-mail e nome de perfil não podem se repetir
+# A senha é guardada criptografada (RNF01). E-mail e nome de perfil não podem se repetir
     @staticmethod
     def cadastrar(db: Session, dados: UsuarioCreate) -> Usuario:
         email = dados.email.lower()
@@ -50,7 +50,7 @@ class UsuarioService:
         db.commit()
         return usuario
 
-    # Só usuários cadastrados e autenticados acessam a estante
+# Só usuários cadastrados e autenticados acessam a estante
     @staticmethod
     def buscarPorToken(db: Session, token: str) -> Usuario:
         try:
@@ -79,7 +79,7 @@ class UsuarioService:
         except EmailError as erro:
             log.error("Não foi possível enviar a confirmação para %s: %s", email, erro)
 
-    # Valida o link recebido por e-mail e marca o e-mail como confirmado (RN01)
+# Valida o link recebido por e-mail e marca o e-mail como confirmado (RN01)
     @staticmethod
     def confirmarEmail(db: Session, token: str) -> None:
         try:
@@ -98,7 +98,7 @@ class UsuarioService:
             usuario.email_confirmado = True
             db.commit()
 
-    # Devolve o usuário só se existir e ainda não estiver confirmado
+# Devolve o usuário só se existir e ainda não estiver confirmado
     @staticmethod
     def pendenteDeConfirmacao(db: Session, email: str) -> Usuario | None:
         usuario = db.scalar(select(Usuario).where(Usuario.email == email.lower()))
@@ -124,7 +124,7 @@ class UsuarioService:
     def atualizarPerfil(db: Session, usuario: Usuario, dados: UsuarioUpdate) -> Usuario:
         campos = dados.model_dump(exclude_unset=True)   # ignora o que não foi enviado
 
-        # Estes campos podem ser alterados, mas nunca apagados
+    # Estes campos podem ser alterados, mas nunca apagados
         for obrigatorio in ("nome_perfil", "nome_usuario", "perfil_publico"):
             if obrigatorio in campos:
                 valor = campos[obrigatorio]
@@ -172,7 +172,7 @@ class UsuarioService:
         usuario.foto = None
         db.commit()
 
-    # Perfil visto por outros usuários. Contatos de perfis privados ficam ocultos (RN06)
+# Perfil visto por outros usuários. Contatos de perfis privados ficam ocultos (RN06)
     @staticmethod
     def verPerfil(db: Session, usuarios_id: int, logado_id: int) -> UsuarioPublico:
         usuario = db.get(Usuario, usuarios_id)
@@ -185,3 +185,13 @@ class UsuarioService:
             instagram=usuario.instagram if mostrar_contatos else None,
             discord=usuario.discord if mostrar_contatos else None,
             x=usuario.x if mostrar_contatos else None)
+
+# Foto de qualquer usuário: continua visível mesmo em perfis privados
+    @staticmethod
+    def buscarFoto(db: Session, usuarios_id: int) -> bytes:
+        usuario = db.get(Usuario, usuarios_id)
+        if not usuario:
+            raise HTTPException(404, "Usuário não encontrado")
+        if not usuario.foto:
+            raise HTTPException(404, "Este usuário não tem foto de perfil")
+        return bytes(usuario.foto)

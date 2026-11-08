@@ -99,6 +99,12 @@ def removerMinhaFoto(usuario: Usuario = Depends(usuarioLogado), db: Session = De
 def verPerfilDeUsuario(usuarios_id: int, usuario: Usuario = Depends(usuarioLogado),
                        db: Session = Depends(get_db)):
     return UsuarioService.verPerfil(db, usuarios_id, usuario.id)
+
+@app.get("/usuarios/{usuarios_id}/foto")
+def verFotoDeUsuario(usuarios_id: int, usuario: Usuario = Depends(usuarioLogado),
+                     db: Session = Depends(get_db)):
+    foto = UsuarioService.buscarFoto(db, usuarios_id)
+    return Response(content=foto, media_type=tipoDaImagem(foto) or "application/octet-stream")
 # ---------- Catálogo ----------
 @app.get("/obras", response_model=list[ObraResponse])
 def listarObras(busca: str | None = None, tipo_obra: TipoObra | None = None,
