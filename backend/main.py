@@ -7,10 +7,10 @@ from models import Base, Usuario
 from models.base import TipoObra
 from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar, ObraCatalogo
 from schemas.usuario import (ConfirmarEmail, ExcluirConta, MensagemResponse, ReenviarConfirmacao,
-                             TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse, UsuarioPublico)
+                             TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse, UsuarioPublico, LeitorAfinidade)
 from schemas.usuario_obra import (
     ResenhaCreate, ResenhaResponse, ResenhasObra, UsuarioObraCreate, UsuarioObraResponse,
-    UsuarioObraUpdate,)
+    UsuarioObraUpdate)
 from schemas.usuario_volume import ChecklistObra, UsuarioVolumeResponse, UsuarioVolumeUpdate
 from services.service_catalogo import CatalogoService
 from services.service_estante import EstanteService
@@ -40,6 +40,7 @@ def importarObra(dados: ObraImportar, usuario: Usuario = Depends(usuarioLogado),
                  db: Session = Depends(get_db)):
     return CatalogoService.importarPorIdApi(db, dados.tipo_obra, dados.id_api)
 
+
 # ---------- Autenticação e perfil ----------
 @app.post("/auth/cadastro", response_model=UsuarioResponse, status_code=201)
 def cadastrar(dados: UsuarioCreate, tarefas: BackgroundTasks, db: Session = Depends(get_db)):
@@ -60,10 +61,14 @@ def reenviarConfirmacao(dados: ReenviarConfirmacao, tarefas: BackgroundTasks,
         tarefas.add_task(UsuarioService.enviarConfirmacao, usuario.id, usuario.email, usuario.nome_usuario)
     return MensagemResponse(mensagem="Se o e-mail estiver cadastrado e pendente, enviamos um novo link")
 
+
+# ---------- Login -----------
 @app.post("/auth/login", response_model=TokenResponse)
 def login(dados: UsuarioLogin, db: Session = Depends(get_db)):
     return UsuarioService.login(db, dados)
 
+
+# --------- CRUD Usuario ----------
 @app.get("/usuarios/me", response_model=UsuarioResponse)
 def meuPerfil(usuario: Usuario = Depends(usuarioLogado)):
     return usuario
@@ -78,10 +83,12 @@ def excluirMinhaConta(dados: ExcluirConta, usuario: Usuario = Depends(usuarioLog
                       db: Session = Depends(get_db)):
     UsuarioService.excluirConta(db, usuario, dados.senha)
 
+
+# --------- Fotos de perfil ----------
 @app.put("/usuarios/me/foto", status_code=204)
 def enviarMinhaFoto(arquivo: UploadFile = File(...), usuario: Usuario = Depends(usuarioLogado),
                     db: Session = Depends(get_db)):
-    # lê no máximo 1 byte além do limite, para detectar arquivos grandes sem carregá-los inteiros
+    # le no máximo 1 byte além do limite pra detectar arquivos grandes sem carregá-los inteiros
     conteudo = arquivo.file.read(FOTO_MAX_BYTES + 1)
     UsuarioService.salvarFoto(db, usuario, conteudo)
 
@@ -112,6 +119,7 @@ def obrasEmComum(usuarios_id: int, usuario: Usuario = Depends(usuarioLogado),
                  db: Session = Depends(get_db)):
     return AfinidadeService.obrasEmComum(db, usuario.id, usuarios_id)
 
+
 # ---------- Catálogo ----------
 @app.get("/obras", response_model=list[ObraResponse])
 def listarObras(busca: str | None = None, tipo_obra: TipoObra | None = None,
@@ -127,6 +135,7 @@ def detalharObra(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
 def listarResenhas(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
                     db: Session = Depends(get_db)):
     return CatalogoService.resenhas(db, obras_id)
+
 
 # ---------- Estante ----------
 @app.get("/estante", response_model=list[UsuarioObraResponse])
@@ -149,6 +158,13 @@ def removerObra(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
     EstanteService.remover(db, usuario.id, obras_id)
 
 
+# ---------- Leitores por Afinidade ---------
+@app.get("/leitores", response_model=list[LeitorAfinidade])
+def descobrirLeitores(pagina: int = 1, limite: int = 20,
+                      usuario: Usuario = Depends(usuarioLogado), db: Session = Depends(get_db)):
+    return AfinidadeService.leitores(db, usuario.id, pagina, limite)
+
+
 # ---------- Checklist de volumes ----------
 @app.get("/estante/{obras_id}/checklist", response_model=ChecklistObra)
 def verChecklist(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
@@ -166,5 +182,6 @@ def atualizarVolume(obras_id: int, volumes_id: int, dados: UsuarioVolumeUpdate,
 def salvarResenha(obras_id: int, dados: ResenhaCreate, usuario: Usuario = Depends(usuarioLogado),
                    db: Session = Depends(get_db)):
     return EstanteService.salvarResenha(db, usuario.id, obras_id, dados)
+
 
 # Documentação: http://localhost:8000/docs
