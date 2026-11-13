@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
+import hashlib
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,6 +24,11 @@ def gerarHash(senha: str) -> str:
 
 def senhaConfere(senha: str, senha_hash: str) -> bool:
     return bcrypt.checkpw(senha.encode()[:72], senha_hash.encode())
+
+# Impressão da senha atual. Entra no token de redefinição para ele valer uma única vez
+# Depois que a senha muda, a impressão muda e o link antigo deixa de funcionar
+def impressaoDaSenha(senha_hash: str) -> str:
+    return hashlib.sha256(senha_hash.encode()).hexdigest()[:16]
 
 # Descobre o tipo pelo conteúdo do arquivo
 def tipoDaImagem(dados: bytes) -> str | None:
@@ -57,6 +63,9 @@ class UsuarioService:
             dados = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         except jwt.PyJWTError:
             dados = {}
+        if dados.get("tipo") != "acesso":
+            dados = {}
+        # Só tokens de login valem, os de confirmação de e-mail e de redefinição não dão acesso
         usuario = db.get(Usuario, int(dados.get("sub", 0)))
         if not usuario:
             raise HTTPException(401, "Não autenticado", headers={"WWW-Authenticate": "Bearer"})
@@ -103,6 +112,50 @@ class UsuarioService:
     def pendenteDeConfirmacao(db: Session, email: str) -> Usuario | None:
         usuario = db.scalar(select(Usuario).where(Usuario.email == email.lower()))
         return usuario if usuario and not usuario.email_confirmado else None
+
+    @staticmethod
+    def buscarPorEmail(db: Session, email: str) -> Usuario | None:
+        return db.scalar(select(Usuario).where(Usuario.email == email.lower()))
+
+# Envia o link de redefinição por e-mail (RN18). O link vale por 1 hora e uma única vez
+    @staticmethod
+    def enviarRedefinicao(usuario_id: int, email: str, nome: str, senha_hash: str) -> None:
+        expira = datetime.now(timezone.utc) + timedelta(hours=1)
+        token = jwt.encode({"sub": str(usuario_id), "tipo": "redefinir_senha",
+                            "chave": impressaoDaSenha(senha_hash), "exp": expira},
+                           SECRET_KEY, algorithm="HS256")
+        link = f"{FRONTEND_URL}/redefinir-senha?token={token}"
+        texto = (f"Olá, {nome}!\n\nRecebemos um pedido para redefinir a senha da sua conta na Estante Geek:\n"
+                 f"{link}\n\nO link vale por 1 hora e só pode ser usado uma vez. "
+                 f"Se não foi você, ignore esta mensagem: sua senha continua a mesma.")
+        html = (f"<p>Olá, <b>{nome}</b>!</p>"
+                f"<p>Recebemos um pedido para redefinir a senha da sua conta na Estante Geek:</p>"
+                f'<p><a href="{link}">Redefinir minha senha</a></p>'
+                f"<p>O link vale por 1 hora e só pode ser usado uma vez. "
+                f"Se não foi você, ignore esta mensagem: sua senha continua a mesma.</p>")
+        try:
+            EmailService.enviar(email, "Redefinição de senha - Estante Geek", texto, html)
+        except EmailError as erro:
+            log.error("Não foi possível enviar a redefinição para %s: %s", email, erro)
+
+# Valida o link recebido por e-mail e grava a nova senha criptografada (RN18 e RNF01)
+    @staticmethod
+    def redefinirSenha(db: Session, token: str, nova_senha: str) -> None:
+        try:
+            dados = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(400, "Este link expirou. Solicite um novo link de redefinição.")
+        except jwt.PyJWTError:
+            raise HTTPException(400, "Link de redefinição inválido.")
+        if dados.get("tipo") != "redefinir_senha":
+            raise HTTPException(400, "Link de redefinição inválido.")
+
+        usuario = db.get(Usuario, int(dados.get("sub", 0)))
+        if not usuario or dados.get("chave") != impressaoDaSenha(usuario.senha):
+            raise HTTPException(400, "Este link já foi usado ou é inválido. Solicite um novo link.")
+
+        usuario.senha = gerarHash(nova_senha)
+        db.commit()
 
 # A conta só pode entrar depois de confirmar o e-mail
     @staticmethod
