@@ -41,7 +41,7 @@ class CatalogoService:
         registros = db.scalars(
             select(UsuarioObra).options(joinedload(UsuarioObra.usuario))
             .where(UsuarioObra.obras_id == obras_id, UsuarioObra.nota.is_not(None))
-            .order_by(UsuarioObra.data_publicacao.desc(), UsuarioObra.id.desc()))
+            .order_by(UsuarioObra.data_publicacao.desc(), UsuarioObra.id.desc())).all()
         media = round(sum(r.nota for r in registros) / len(registros), 1) if registros else None
         return ResenhasObra(media_notas=media, total_avaliacoes=len(registros),
                             resenhas=[ResenhaResponse.model_validate(r) for r in registros])

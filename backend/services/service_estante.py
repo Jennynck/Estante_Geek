@@ -138,6 +138,16 @@ class EstanteService:
         db.commit()
         return registro
 
+# O usuário pode excluir a própria resenha (RN13). A obra continua na estante
+    @staticmethod
+    def removerResenha(db: Session, usuario_id: int, obras_id: int) -> None:
+        registro = EstanteService._buscarRegistro(db, usuario_id, obras_id)
+        if registro.nota is None:
+            raise HTTPException(404, "Você ainda não tem resenha para esta obra")
+        registro.nota = None
+        registro.resenha = None
+        db.commit()
+
     @staticmethod
     def _buscarRegistro(db: Session, usuario_id: int, obras_id: int) -> UsuarioObra:
         registro = db.scalar(select(UsuarioObra).where(
