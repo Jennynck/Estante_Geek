@@ -5,7 +5,7 @@ import bcrypt
 import jwt
 import hashlib
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from models import Usuario
 from schemas.usuario import UsuarioCreate, UsuarioLogin, UsuarioUpdate, UsuarioPublico
@@ -202,7 +202,9 @@ class UsuarioService:
     @staticmethod
     def excluirConta(db: Session, usuario: Usuario, senha: str) -> None:
         if usuario.is_admin:
-            raise HTTPException(403, "O administrador não pode excluir a própria conta")
+            total_admins = db.scalar(select(func.count(Usuario.id)).where(Usuario.is_admin.is_(True)))
+            if total_admins <= 1:
+                raise HTTPException(403, "O único administrador não pode excluir a própria conta")
         if not senhaConfere(senha, usuario.senha):
             raise HTTPException(403, "Senha incorreta")
         db.delete(usuario)
