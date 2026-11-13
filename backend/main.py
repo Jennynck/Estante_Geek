@@ -7,7 +7,8 @@ from models import Base, Usuario
 from models.base import TipoObra
 from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar, ObraCatalogo
 from schemas.usuario import (ConfirmarEmail, ExcluirConta, MensagemResponse, ReenviarConfirmacao,
-                             TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse, UsuarioPublico, LeitorAfinidade)
+                             TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse, UsuarioPublico, 
+                             LeitorAfinidade,EsqueciSenha, RedefinirSenha)
 from schemas.usuario_obra import (
     ResenhaCreate, ResenhaResponse, ResenhasObra, UsuarioObraCreate, UsuarioObraResponse,
     UsuarioObraUpdate)
@@ -68,6 +69,22 @@ def login(dados: UsuarioLogin, db: Session = Depends(get_db)):
     return UsuarioService.login(db, dados)
 
 
+# --------- Redefição de senha ---------
+@app.post("/auth/esqueci-senha", response_model=MensagemResponse)
+def esqueciSenha(dados: EsqueciSenha, tarefas: BackgroundTasks, db: Session = Depends(get_db)):
+    usuario = UsuarioService.buscarPorEmail(db, dados.email)
+    if usuario:
+        tarefas.add_task(UsuarioService.enviarRedefinicao, usuario.id, usuario.email,
+                         usuario.nome_usuario, usuario.senha)
+    # Resposta igual se existe ou não a conta para não revelar os e-mails cadastrados
+    return MensagemResponse(mensagem="Se o e-mail estiver cadastrado, enviamos um link para redefinir a senha")
+
+@app.post("/auth/redefinir-senha", response_model=MensagemResponse)
+def redefinirSenha(dados: RedefinirSenha, db: Session = Depends(get_db)):
+    UsuarioService.redefinirSenha(db, dados.token, dados.nova_senha)
+    return MensagemResponse(mensagem="Senha redefinida com sucesso! Agora você já pode fazer login")
+
+
 # --------- CRUD Usuario ----------
 @app.get("/usuarios/me", response_model=UsuarioResponse)
 def meuPerfil(usuario: Usuario = Depends(usuarioLogado)):
@@ -88,7 +105,7 @@ def excluirMinhaConta(dados: ExcluirConta, usuario: Usuario = Depends(usuarioLog
 @app.put("/usuarios/me/foto", status_code=204)
 def enviarMinhaFoto(arquivo: UploadFile = File(...), usuario: Usuario = Depends(usuarioLogado),
                     db: Session = Depends(get_db)):
-    # le no máximo 1 byte além do limite pra detectar arquivos grandes sem carregá-los inteiros
+# le no máximo 1 byte além do limite pra detectar arquivos grandes sem carregá-los inteiros
     conteudo = arquivo.file.read(FOTO_MAX_BYTES + 1)
     UsuarioService.salvarFoto(db, usuario, conteudo)
 
