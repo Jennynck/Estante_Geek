@@ -200,5 +200,10 @@ def salvarResenha(obras_id: int, dados: ResenhaCreate, usuario: Usuario = Depend
                    db: Session = Depends(get_db)):
     return EstanteService.salvarResenha(db, usuario.id, obras_id, dados)
 
+@app.delete("/estante/{obras_id}/resenha", status_code=204)
+def removerMinhaResenha(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
+                        db: Session = Depends(get_db)):
+    EstanteService.removerResenha(db, usuario.id, obras_id)
+
 
 # Documentação: http://localhost:8000/docs
