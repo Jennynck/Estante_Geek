@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, contains_eager, joinedload
-from models import Obra, Termo, UsuarioObra, UsuarioVolume, Volume
+from models import Obra, Termo, UsuarioObra, UsuarioVolume, Volume, Usuario
 from models.base import StatusLeitura
 from schemas.usuario_obra import ResenhaCreate, UsuarioObraResponse
 from schemas.usuario_volume import ChecklistObra, UsuarioVolumeResponse
@@ -50,6 +50,28 @@ class EstanteService:
                 id=r.id, obra=obra, status=r.status, nota=r.nota, resenha=r.resenha,
                 data_publicacao=r.data_publicacao, volumes_lidos=volumes_lidos,
                 progresso=calcularProgresso(volumes_lidos, obra.total_volumes)))
+        return itens
+
+     # Estante de outro usuário: só perfis públicos (RN06). O próprio dono sempre pode ver
+    @staticmethod
+    def listarDeOutro(db: Session, logado_id: int, usuarios_id: int) -> list[UsuarioObraResponse]:
+        # Busca só as colunas necessárias, sem carregar a foto
+        dono = db.execute(select(Usuario.id, Usuario.perfil_publico)
+                          .where(Usuario.id == usuarios_id)).first()
+        if not dono:
+            raise HTTPException(404, "Usuário não encontrado")
+        if not dono.perfil_publico and dono.id != logado_id:
+            raise HTTPException(403, "Este perfil é privado. Você só pode ver as obras em comum")
+
+        itens = EstanteService.listar(db, usuarios_id)
+
+        # O listar marca tudo como "na estante" de quem é dono da lista.
+        # Aqui o que importa é a estante de quem está consultando
+        if usuarios_id != logado_id:
+            minhas = set(db.scalars(select(UsuarioObra.obras_id)
+                                    .where(UsuarioObra.usuarios_id == logado_id)))
+            for item in itens:
+                item.obra.na_estante = item.obra.id in minhas
         return itens
 
     # A mesma obra não pode entrar duas vezes na estante (RN10)

@@ -136,6 +136,11 @@ def obrasEmComum(usuarios_id: int, usuario: Usuario = Depends(usuarioLogado),
                  db: Session = Depends(get_db)):
     return AfinidadeService.obrasEmComum(db, usuario.id, usuarios_id)
 
+@app.get("/usuarios/{usuarios_id}/estante", response_model=list[UsuarioObraResponse])
+def verEstanteDeUsuario(usuarios_id: int, usuario: Usuario = Depends(usuarioLogado),
+                        db: Session = Depends(get_db)):
+    return EstanteService.listarDeOutro(db, usuario.id, usuarios_id)
+
 
 # ---------- Catálogo ----------
 @app.get("/obras", response_model=list[ObraResponse])
