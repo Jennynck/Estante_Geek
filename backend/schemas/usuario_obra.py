@@ -17,6 +17,7 @@ class UsuarioObraResponse(BaseModel):
     status: StatusLeitura
     nota: int | None = None
     resenha: str | None = None
+    resenha_bloqueada: bool = False
     data_publicacao: date
     volumes_lidos: int = 0   # volumes com status Lido
     progresso: float = 0.0   # volumes_lidos / total_volumes * 100
