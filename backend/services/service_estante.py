@@ -48,8 +48,8 @@ class EstanteService:
             volumes_lidos = lidos.get(r.obras_id, 0)
             itens.append(UsuarioObraResponse(
                 id=r.id, obra=obra, status=r.status, nota=r.nota, resenha=r.resenha,
-                data_publicacao=r.data_publicacao, volumes_lidos=volumes_lidos,
-                progresso=calcularProgresso(volumes_lidos, obra.total_volumes)))
+                resenha_bloqueada=r.resenha_bloqueada, data_publicacao=r.data_publicacao, 
+                volumes_lidos=volumes_lidos, progresso=calcularProgresso(volumes_lidos, obra.total_volumes)))
         return itens
 
      # Estante de outro usuário: só perfis públicos (RN06). O próprio dono sempre pode ver
@@ -72,6 +72,11 @@ class EstanteService:
                                     .where(UsuarioObra.usuarios_id == logado_id)))
             for item in itens:
                 item.obra.na_estante = item.obra.id in minhas
+                # Resenha bloqueada pela moderação não aparece para outros usuários (RN16)
+                if item.resenha_bloqueada:
+                    item.nota = None
+                    item.resenha = None
+                    item.resenha_bloqueada = False
         return itens
 
     # A mesma obra não pode entrar duas vezes na estante (RN10)
@@ -153,14 +158,15 @@ class EstanteService:
         registro = EstanteService._buscarRegistro(db, usuario_id, obras_id)
         if dados.resenha and EstanteService._temTermoInadequado(db, dados.resenha):
             raise HTTPException(400, "A resenha contém termos inadequados")
-
+        if registro.resenha_bloqueada:
+                    raise HTTPException(403, "Sua resenha foi bloqueada pela moderação, pois descumpre com as diretrizes da plataforma e não pode ser editada")
         registro.nota = dados.nota
         registro.resenha = dados.resenha or None
         registro.data_publicacao = date.today()   # data em que a resenha foi publicada
         db.commit()
         return registro
 
-# O usuário pode excluir a própria resenha (RN13). A obra continua na estante
+# O usuário pode excluir a própria resenha e a obra continua na estante
     @staticmethod
     def removerResenha(db: Session, usuario_id: int, obras_id: int) -> None:
         registro = EstanteService._buscarRegistro(db, usuario_id, obras_id)
@@ -168,6 +174,7 @@ class EstanteService:
             raise HTTPException(404, "Você ainda não tem resenha para esta obra")
         registro.nota = None
         registro.resenha = None
+        registro.resenha_bloqueada = False
         db.commit()
 
     @staticmethod

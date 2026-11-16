@@ -1,7 +1,7 @@
 from datetime import date
 from sqlalchemy import (
     Boolean, CheckConstraint, Column, Date, Enum, ForeignKey, String, Table,
-    UniqueConstraint, func,)
+    UniqueConstraint, func, false)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models.base import Base, StatusLeitura, valores_enum
 
@@ -22,6 +22,7 @@ class UsuarioObra(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nota: Mapped[int | None]
     resenha: Mapped[str | None] = mapped_column(String(500))
+    resenha_bloqueada: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     status: Mapped[StatusLeitura] = mapped_column(
         Enum(StatusLeitura, native_enum=False, create_constraint=True,
              values_callable=valores_enum),

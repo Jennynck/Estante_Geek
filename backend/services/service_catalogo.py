@@ -40,7 +40,8 @@ class CatalogoService:
             raise HTTPException(404, "Obra não encontrada")
         registros = db.scalars(
             select(UsuarioObra).options(joinedload(UsuarioObra.usuario))
-            .where(UsuarioObra.obras_id == obras_id, UsuarioObra.nota.is_not(None))
+            .where(UsuarioObra.obras_id == obras_id, UsuarioObra.nota.is_not(None),
+                   UsuarioObra.resenha_bloqueada.is_(False))
             .order_by(UsuarioObra.data_publicacao.desc(), UsuarioObra.id.desc())).all()
         media = round(sum(r.nota for r in registros) / len(registros), 1) if registros else None
         return ResenhasObra(media_notas=media, total_avaliacoes=len(registros),
@@ -149,7 +150,8 @@ class CatalogoService:
             .group_by(Volume.obras_id)).all())
         medias = {linha[0]: (linha[1], linha[2]) for linha in db.execute(
             select(UsuarioObra.obras_id, func.avg(UsuarioObra.nota), func.count(UsuarioObra.nota))
-            .where(UsuarioObra.obras_id.in_(ids), UsuarioObra.nota.is_not(None))
+            .where(UsuarioObra.obras_id.in_(ids), UsuarioObra.nota.is_not(None),
+                   UsuarioObra.resenha_bloqueada.is_(False))
             .group_by(UsuarioObra.obras_id)).all()}
 
         catalogo = []

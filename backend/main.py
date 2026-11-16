@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from database import engine, get_db
 from models import Base, Usuario
 from models.base import TipoObra
+
 from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar, ObraCatalogo
 from schemas.usuario import (ConfirmarEmail, ExcluirConta, MensagemResponse, ReenviarConfirmacao,
                              TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse, UsuarioPublico, 
@@ -13,10 +14,14 @@ from schemas.usuario_obra import (
     ResenhaCreate, ResenhaResponse, ResenhasObra, UsuarioObraCreate, UsuarioObraResponse,
     UsuarioObraUpdate)
 from schemas.usuario_volume import ChecklistObra, UsuarioVolumeResponse, UsuarioVolumeUpdate
+from schemas.termo import TermoCreate, TermoResponse
+from schemas.admin import ResenhaModeracao, ResenhaBloqueio
+
 from services.service_catalogo import CatalogoService
 from services.service_estante import EstanteService
 from services.service_usuario import FOTO_MAX_BYTES, UsuarioService, UsuarioUpdate, tipoDaImagem
 from services.service_afinidade import AfinidadeService
+from services.service_admin import AdminService
 
 # Cria as tabelas no banco caso não existam
 Base.metadata.create_all(bind=engine)
@@ -34,6 +39,10 @@ app.add_middleware(
 def usuarioLogado(credenciais=Depends(HTTPBearer()), db: Session = Depends(get_db)) -> Usuario:
     return UsuarioService.buscarPorToken(db, credenciais.credentials)
 
+def administradorLogado(usuario: Usuario = Depends(usuarioLogado)) -> Usuario:
+    if not usuario.is_admin:
+        raise HTTPException(403, "Acesso restrito a administradores")
+    return usuario
 
 # ---------- Importação das APIs ----------
 @app.post("/obras/importar", response_model=ObraDetalhe)
@@ -209,6 +218,37 @@ def salvarResenha(obras_id: int, dados: ResenhaCreate, usuario: Usuario = Depend
 def removerMinhaResenha(obras_id: int, usuario: Usuario = Depends(usuarioLogado),
                         db: Session = Depends(get_db)):
     EstanteService.removerResenha(db, usuario.id, obras_id)
+
+
+# ---------- Administrador: termos inadequados ----------
+@app.get("/admin/termos", response_model=list[TermoResponse])
+def listarTermos(admin: Usuario = Depends(administradorLogado), db: Session = Depends(get_db)):
+    return AdminService.listarTermos(db)
+
+@app.post("/admin/termos", response_model=TermoResponse, status_code=201)
+def adicionarTermo(dados: TermoCreate, admin: Usuario = Depends(administradorLogado),
+                    db: Session = Depends(get_db)):
+    return AdminService.adicionarTermo(db, dados)
+
+@app.delete("/admin/termos/{termos_id}", status_code=204)
+def removerTermo(termos_id: int, admin: Usuario = Depends(administradorLogado),
+                  db: Session = Depends(get_db)):
+    AdminService.removerTermo(db, termos_id)
+
+
+# ---------- Administrador: moderação de resenhas ----------
+@app.get("/admin/resenhas", response_model=list[ResenhaModeracao])
+def listarResenhasAdmin(busca: str | None = None, obras_id: int | None = None,
+                        usuarios_id: int | None = None, pagina: int = 1, limite: int = 20,
+                        admin: Usuario = Depends(administradorLogado), db: Session = Depends(get_db)):
+    return AdminService.listarResenhas(db, busca, obras_id, usuarios_id, pagina, limite)
+
+@app.patch("/admin/resenhas/{resenhas_id}", response_model=ResenhaModeracao)
+def bloquearResenhaAdmin(resenhas_id: int, dados: ResenhaBloqueio,
+                         admin: Usuario = Depends(administradorLogado), db: Session = Depends(get_db)):
+    return AdminService.bloquearResenha(db, resenhas_id, dados.bloqueada)
+
+# ---------- Administrador: moderação de usuários ----------
 
 
 # Documentação: http://localhost:8000/docs
