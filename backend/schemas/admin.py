@@ -2,6 +2,7 @@ from datetime import date
 from pydantic import BaseModel, ConfigDict
 from models.base import TipoObra
 from schemas.usuario_obra import AutorResenha
+from schemas.usuario import UsuarioPublico
 
 class ObraResumo(BaseModel):
     model_config = ConfigDict(from_attributes=True)

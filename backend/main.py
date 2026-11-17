@@ -21,7 +21,7 @@ from services.service_catalogo import CatalogoService
 from services.service_estante import EstanteService
 from services.service_usuario import FOTO_MAX_BYTES, UsuarioService, UsuarioUpdate, tipoDaImagem
 from services.service_afinidade import AfinidadeService
-from services.service_admin import AdminService
+from services.service_admin import AdminService, UsuarioAdmin
 
 # Cria as tabelas no banco caso não existam
 Base.metadata.create_all(bind=engine)
@@ -249,6 +249,11 @@ def bloquearResenhaAdmin(resenhas_id: int, dados: ResenhaBloqueio,
     return AdminService.bloquearResenha(db, resenhas_id, dados.bloqueada)
 
 # ---------- Administrador: moderação de usuários ----------
+@app.get("/admin/usuarios", response_model=list[UsuarioAdmin])
+def admListarUsuarios(busca: str | None = None, pagina: int = 1, limite: int = 20,
+                      admin: Usuario = Depends(administradorLogado),
+                      db: Session = Depends(get_db)):
+    return AdminService.listarUsuarios(db, busca, pagina, limite)
 
 
 # Documentação: http://localhost:8000/docs

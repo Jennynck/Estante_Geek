@@ -18,6 +18,7 @@ if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY não está configurada no .env")
 FRONTEND_URL = (os.getenv("FRONTEND_URL") or "http://localhost:5173").rstrip("/")
 FOTO_MAX_BYTES = 2 * 1024 * 1024 # 2 MB, tamanho máximo que uma foto deve ter
+BLOQUEADO = "Sua conta foi bloqueada pelo Administrador por infrigir as regras da plataforma!"
 
 def gerarHash(senha: str) -> str:
     return bcrypt.hashpw(senha.encode()[:72], bcrypt.gensalt()).decode()
@@ -69,6 +70,8 @@ class UsuarioService:
         usuario = db.get(Usuario, int(dados.get("sub", 0)))
         if not usuario:
             raise HTTPException(401, "Não autenticado", headers={"WWW-Authenticate": "Bearer"})
+        if usuario.usuario_bloqueado:
+            raise HTTPException(403, BLOQUEADO)
         return usuario
 
     @staticmethod
@@ -165,6 +168,8 @@ class UsuarioService:
             raise HTTPException(401, "E-mail ou senha incorretos")
         if not usuario.email_confirmado:
             raise HTTPException(403, "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.")
+        if usuario.usuario_bloqueado:
+            raise HTTPException(403, BLOQUEADO)
 
         expira = datetime.now(timezone.utc) + timedelta(hours=24)
         token = jwt.encode({"sub": str(usuario.id), "tipo": "acesso", "exp": expira},
