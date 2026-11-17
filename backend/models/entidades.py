@@ -54,7 +54,7 @@ class Obra(Base):
     sinopse: Mapped[str | None] = mapped_column(Text)
     capa_url: Mapped[str | None] = mapped_column(String(250))
     tipo_obra: Mapped[TipoObra] = mapped_column(Enum(TipoObra))
-    # unique evita salvar a mesma obra duas vezes
+    # unique evita salvar a mesma obra duas vezes e reaproveita o registro
     api_url: Mapped[str] = mapped_column(String(250), unique=True)
     data_publicacao: Mapped[date | None] = mapped_column(Date)
     editoras_id: Mapped[int | None] = mapped_column(ForeignKey("editoras.id"))
