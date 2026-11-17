@@ -89,4 +89,16 @@ class AdminService:
     @staticmethod
     def detalharUsuario(db: Session, usuarios_id: int) -> Usuario:
         return AdminService._buscarUsuario(db, usuarios_id)
-    
+
+    @staticmethod
+    def bloquear(db: Session, admin: Usuario, usuarios_id: int) -> Usuario:
+        conta = AdminService._buscarUsuario(db, usuarios_id)
+        if conta.id == admin.id:
+            raise HTTPException(400, "Você não pode bloquear a própria conta")
+        if conta.is_admin:
+            raise HTTPException(403, "Administradores não podem ser bloqueados")
+        if conta.usuario_bloqueado:
+            raise HTTPException(409, "Este usuário já está bloqueado")
+        conta.usuario_bloqueado = True
+        db.commit()
+        return conta

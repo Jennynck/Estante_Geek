@@ -260,4 +260,9 @@ def admDetalharUsuario(usuarios_id: int, admin: Usuario = Depends(administradorL
                        db: Session = Depends(get_db)):
     return AdminService.detalharUsuario(db, usuarios_id)
 
+@app.patch("/admin/usuarios/{usuarios_id}/bloquear", response_model=UsuarioAdmin)
+def admBloquearUsuario(usuarios_id: int, admin: Usuario = Depends(administradorLogado),
+                       db: Session = Depends(get_db)):
+    return AdminService.bloquear(db, admin, usuarios_id)
+
 # Documentação: http://localhost:8000/docs
