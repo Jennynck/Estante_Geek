@@ -46,7 +46,7 @@ class ExcluirConta(BaseModel):
     senha: str
 
 # Edição do perfil e da visibilidade
-# Tudo é opcional, só muda o que o usuário enviar (um contato enviado como null é removido)
+# Tudo é opcional, só muda o que o usuário enviar um contato enviado como null é removido
 class UsuarioUpdate(BaseModel):
     nome_perfil: str | None = Field(default=None, min_length=1, max_length=50)
     nome_usuario: str | None = Field(default=None, min_length=1, max_length=50)
@@ -57,7 +57,7 @@ class UsuarioUpdate(BaseModel):
 
     _contatos = field_validator("instagram", "discord", "x", mode="before")(_vazio_vira_none)
 
-# O que o próprio usuário vê da sua conta
+# o que o próprio usuário ve da sua conta
 class UsuarioResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -71,7 +71,7 @@ class UsuarioResponse(BaseModel):
     perfil_publico: bool
     is_admin: bool
 
-# Perfil visto por outros usuários
+# perfil visto por outros usuarios
 class UsuarioPublico(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -81,7 +81,7 @@ class UsuarioPublico(BaseModel):
     discord: str | None = None
     x: str | None = None
 
-# Leitor encontrado na descoberta, com as obras que tem em comum com quem consulta
+# leitor encontrado na descoberta, com as obras que tem em comum com quem consulta
 class LeitorAfinidade(UsuarioPublico):
     total_em_comum: int = 0
     obras_em_comum: list[str] = []
