@@ -114,7 +114,7 @@ def excluirMinhaConta(dados: ExcluirConta, usuario: Usuario = Depends(usuarioLog
 @app.put("/usuarios/me/foto", status_code=204)
 def enviarMinhaFoto(arquivo: UploadFile = File(...), usuario: Usuario = Depends(usuarioLogado),
                     db: Session = Depends(get_db)):
-# le no máximo 1 byte além do limite pra detectar arquivos grandes sem carregá-los inteiros
+# le no maximo 1 byte alem do limite assim da para recusar arquivos grandes sem carrega-los inteiros
     conteudo = arquivo.file.read(FOTO_MAX_BYTES + 1)
     UsuarioService.salvarFoto(db, usuario, conteudo)
 
@@ -264,5 +264,10 @@ def admDetalharUsuario(usuarios_id: int, admin: Usuario = Depends(administradorL
 def admBloquearUsuario(usuarios_id: int, admin: Usuario = Depends(administradorLogado),
                        db: Session = Depends(get_db)):
     return AdminService.bloquear(db, admin, usuarios_id)
+
+@app.patch("/admin/usuarios/{usuarios_id}/desbloquear", response_model=UsuarioAdmin)
+def admDesbloquearUsuario(usuarios_id: int, admin: Usuario = Depends(administradorLogado),
+                          db: Session = Depends(get_db)):
+    return AdminService.desbloquear(db, usuarios_id)
 
 # Documentação: http://localhost:8000/docs

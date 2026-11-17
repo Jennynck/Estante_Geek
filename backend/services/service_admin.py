@@ -102,3 +102,12 @@ class AdminService:
         conta.usuario_bloqueado = True
         db.commit()
         return conta
+    
+    @staticmethod
+    def desbloquear(db: Session, usuarios_id: int) -> Usuario:
+        conta = AdminService._buscarUsuario(db, usuarios_id)
+        if not conta.usuario_bloqueado:
+            raise HTTPException(409, "Este usuário não está bloqueado")
+        conta.usuario_bloqueado = False
+        db.commit()
+        return conta
