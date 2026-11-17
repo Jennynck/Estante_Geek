@@ -1,8 +1,10 @@
 from fastapi import HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import select, or_
+from sqlalchemy.orm import Session, joinedload, defer
 from models import Termo, UsuarioObra
 from schemas.termo import TermoCreate
+from models.entidades import Usuario
+from schemas.admin import UsuarioAdmin
 
 class AdminService:
     # Só o administrador gerencia a lista de palavras inadequadas (RN17)
@@ -63,3 +65,16 @@ class AdminService:
         registro.resenha_bloqueada = bloqueada
         db.commit()
         return registro
+
+    # Lista os usuários para o administrador, com busca por nome de perfil ou e-mail (RF14)
+    @staticmethod
+    def listarUsuarios(db: Session, busca: str | None = None,
+                       pagina: int = 1, limite: int = 20) -> list[Usuario]:
+        pagina, limite = max(pagina, 1), min(max(limite, 1), 50)
+        consulta = select(Usuario).options(defer(Usuario.foto)).order_by(Usuario.id)  # não carrega a foto
+        if busca and busca.strip():
+            termo = f"%{busca.strip()[:100]}%"
+            consulta = consulta.where(or_(Usuario.nome_perfil.ilike(termo),
+                                          Usuario.email.ilike(termo)))
+        return list(db.scalars(consulta.offset((pagina - 1) * limite).limit(limite)))
+    

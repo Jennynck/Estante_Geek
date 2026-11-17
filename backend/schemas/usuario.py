@@ -85,3 +85,14 @@ class UsuarioPublico(BaseModel):
 class LeitorAfinidade(UsuarioPublico):
     total_em_comum: int = 0
     obras_em_comum: list[str] = []
+
+class UsuarioAdmin(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    nome_perfil: str
+    nome_usuario: str
+    email: str
+    email_confirmado: bool
+    usuario_bloqueado: bool
+    perfil_publico: bool
+    is_admin: bool
