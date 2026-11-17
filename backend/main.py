@@ -9,7 +9,7 @@ from models.base import TipoObra
 from schemas.obra import ObraDetalhe, ObraResponse, ObraImportar, ObraCatalogo
 from schemas.usuario import (ConfirmarEmail, ExcluirConta, MensagemResponse, ReenviarConfirmacao,
                              TokenResponse, UsuarioCreate, UsuarioLogin, UsuarioResponse, UsuarioPublico, 
-                             LeitorAfinidade,EsqueciSenha, RedefinirSenha)
+                             LeitorAfinidade,EsqueciSenha, RedefinirSenha, UsuarioAdmin)
 from schemas.usuario_obra import (
     ResenhaCreate, ResenhaResponse, ResenhasObra, UsuarioObraCreate, UsuarioObraResponse,
     UsuarioObraUpdate)
@@ -21,7 +21,7 @@ from services.service_catalogo import CatalogoService
 from services.service_estante import EstanteService
 from services.service_usuario import FOTO_MAX_BYTES, UsuarioService, UsuarioUpdate, tipoDaImagem
 from services.service_afinidade import AfinidadeService
-from services.service_admin import AdminService, UsuarioAdmin
+from services.service_admin import AdminService
 
 # Cria as tabelas no banco caso não existam
 Base.metadata.create_all(bind=engine)
@@ -255,5 +255,9 @@ def admListarUsuarios(busca: str | None = None, pagina: int = 1, limite: int = 2
                       db: Session = Depends(get_db)):
     return AdminService.listarUsuarios(db, busca, pagina, limite)
 
+@app.get("/admin/usuarios/{usuarios_id}", response_model=UsuarioAdmin)
+def admDetalharUsuario(usuarios_id: int, admin: Usuario = Depends(administradorLogado),
+                       db: Session = Depends(get_db)):
+    return AdminService.detalharUsuario(db, usuarios_id)
 
 # Documentação: http://localhost:8000/docs

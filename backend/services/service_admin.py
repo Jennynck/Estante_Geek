@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session, joinedload, defer
 from models import Termo, UsuarioObra
 from schemas.termo import TermoCreate
 from models.entidades import Usuario
-from schemas.admin import UsuarioAdmin
+from schemas.usuario import UsuarioUpdate
+from services.service_usuario import UsuarioService
 
 class AdminService:
     # Só o administrador gerencia a lista de palavras inadequadas (RN17)
@@ -77,4 +78,15 @@ class AdminService:
             consulta = consulta.where(or_(Usuario.nome_perfil.ilike(termo),
                                           Usuario.email.ilike(termo)))
         return list(db.scalars(consulta.offset((pagina - 1) * limite).limit(limite)))
+
+    @staticmethod
+    def _buscarUsuario(db: Session, usuarios_id: int) -> Usuario:
+        usuario = db.get(Usuario, usuarios_id, options=[defer(Usuario.foto)])
+        if not usuario:
+            raise HTTPException(404, "Usuário não encontrado")
+        return usuario
+
+    @staticmethod
+    def detalharUsuario(db: Session, usuarios_id: int) -> Usuario:
+        return AdminService._buscarUsuario(db, usuarios_id)
     
