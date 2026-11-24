@@ -1,6 +1,6 @@
-from datetime import date
-from sqlalchemy import (Boolean, Date, Enum, ForeignKey, LargeBinary,
-                        String, Text, UniqueConstraint)
+from datetime import date, datetime
+from sqlalchemy import (Boolean, Date, DateTime, Enum, ForeignKey, LargeBinary,
+                        String, Text, UniqueConstraint, func)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models.base import Base, TipoObra
 
@@ -27,35 +27,32 @@ class Usuario(Base):
     volumes: Mapped[list["UsuarioVolume"]] = relationship(
         back_populates="usuario", cascade="all, delete-orphan"
     )
+    senhas_anteriores: Mapped[list["SenhaAnterior"]] = relationship(
+        back_populates="usuario", cascade="all, delete-orphan"
+    )
 
 class Editora(Base):
     __tablename__ = "editoras"
-
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(100), unique=True)
-
     obras: Mapped[list["Obra"]] = relationship(back_populates="editora")
 
 class Genero(Base):
     __tablename__ = "generos"
-
     id: Mapped[int] = mapped_column(primary_key=True)
     categoria: Mapped[str] = mapped_column(String(50), unique=True)
-
     obras: Mapped[list["Obra"]] = relationship(
         secondary="obra_generos", back_populates="generos"
     )
 
 class Obra(Base):
     __tablename__ = "obras"
-
     id: Mapped[int] = mapped_column(primary_key=True)
     titulo: Mapped[str] = mapped_column(String(250))
     sinopse: Mapped[str | None] = mapped_column(Text)
     capa_url: Mapped[str | None] = mapped_column(String(250))
     tipo_obra: Mapped[TipoObra] = mapped_column(Enum(TipoObra))
-    # unique evita salvar a mesma obra duas vezes e reaproveita o registro
-    api_url: Mapped[str] = mapped_column(String(250), unique=True)
+    api_url: Mapped[str] = mapped_column(String(250), unique=True) # unique evita salvar a mesma obra duas vezes e reaproveita o registro
     data_publicacao: Mapped[date | None] = mapped_column(Date)
     editoras_id: Mapped[int | None] = mapped_column(ForeignKey("editoras.id"))
 
@@ -80,7 +77,6 @@ class Volume(Base):
     __table_args__ = (
         UniqueConstraint("obras_id", "numero_volume", name="uq_volumes_obra_numero"),
     )
-
     id: Mapped[int] = mapped_column(primary_key=True)
     titulo_volume: Mapped[str] = mapped_column(String(250))
     sinopse: Mapped[str | None] = mapped_column(Text)
@@ -97,6 +93,15 @@ class Volume(Base):
 class Termo(Base):
     """Termos inadequados, usados para filtrar resenhas (moderação)."""
     __tablename__ = "termos"
-
     id: Mapped[int] = mapped_column(primary_key=True)
     termos_inadequados: Mapped[str] = mapped_column(String(100), unique=True)
+
+class SenhaAnterior(Base):
+    """Histórico de senhas (hash) já usadas pelo usuário, para impedir reutilização na redefinição."""
+    __tablename__ = "senhas_anteriores"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    senha: Mapped[str] = mapped_column(String(250))
+    usuarios_id: Mapped[int] = mapped_column(
+        ForeignKey("usuarios.id"), index=True)
+
+    usuario: Mapped["Usuario"] = relationship(back_populates="senhas_anteriores")

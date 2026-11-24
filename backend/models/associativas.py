@@ -17,7 +17,7 @@ class UsuarioObra(Base):
     __tablename__ = "usuarios_obras"
     __table_args__ = (
         UniqueConstraint("usuarios_id", "obras_id", name="uq_usuarios_obras"),
-        CheckConstraint("nota >= 1 AND nota <= 10", name="ck_usuarios_obras_nota"))
+        CheckConstraint("nota >= 1 AND nota <= 5", name="ck_usuarios_obras_nota"))
 
     id: Mapped[int] = mapped_column(primary_key=True)
     nota: Mapped[int | None]
