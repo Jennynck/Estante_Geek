@@ -7,7 +7,7 @@ import hashlib
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from models import Usuario
+from models import SenhaAnterior, Usuario
 from schemas.usuario import UsuarioCreate, UsuarioLogin, UsuarioUpdate, UsuarioPublico
 from services.service_email import EmailError, EmailService
 
@@ -156,7 +156,11 @@ class UsuarioService:
         usuario = db.get(Usuario, int(dados.get("sub", 0)))
         if not usuario or dados.get("chave") != impressaoDaSenha(usuario.senha):
             raise HTTPException(400, "Este link já foi usado ou é inválido. Solicite um novo link.")
-
+        antigas = db.scalars(select(SenhaAnterior.senha).where(SenhaAnterior.usuarios_id == usuario.id))
+        if senhaConfere(nova_senha, usuario.senha) or any(senhaConfere(nova_senha, h) for h in antigas):
+            raise HTTPException(400, "Senha inválida. Tente uma senha diferente!")
+        # guarda a senha que esta saindo no historico antes de trocar
+        db.add(SenhaAnterior(usuarios_id=usuario.id, senha=usuario.senha))
         usuario.senha = gerarHash(nova_senha)
         db.commit()
 
