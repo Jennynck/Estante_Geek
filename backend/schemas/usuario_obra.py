@@ -24,7 +24,7 @@ class UsuarioObraResponse(BaseModel):
 
 # Registrar ou editar a resenha (uma por obra)
 class ResenhaCreate(BaseModel):
-    nota: int = Field(ge=1, le=10)
+    nota: int = Field(ge=1, le=5)
     resenha: str | None = Field(default=None, max_length=500)
 
 class AutorResenha(BaseModel):
