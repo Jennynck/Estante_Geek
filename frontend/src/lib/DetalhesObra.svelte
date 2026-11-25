@@ -1,3 +1,4 @@
+
 <script>
   import { onMount } from 'svelte';
   import Cabecalho from '$lib/Cabecalho.svelte';
@@ -25,10 +26,6 @@
   let carregandoQuantidade = $state(false);
   let observacaoQuantidade = $state('');
 
-  // ========================================
-  // TRADUÇÃO DOS GÊNEROS
-  // ========================================
-
   const generosPTBR = {
     Action: 'Ação',
     Adventure: 'Aventura',
@@ -53,10 +50,6 @@
     return generosPTBR[nome] || nome;
   }
 
-  // ========================================
-  // CORES DO STATUS DE LEITURA
-  // ========================================
-
   function corStatus(status) {
     const cores = {
       'Quero Ler': '#ffda0d',
@@ -64,28 +57,20 @@
       'Lido': '#b3e8c0',
       'Pausado': '#dac4ff'
     };
-
     return cores[status] || '#08bdf0';
   }
-
-  // ========================================
-  // TRADUÇÃO DA SINOPSE
-  // ========================================
 
   async function traduzirSinopse(texto) {
     sinopseTraduzida = '';
     erroTraducao = false;
 
     if (!texto) return;
-
     traduzindo = true;
 
     try {
       const resposta = await fetch('/api/traduzir', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           texto: texto.slice(0, 4500)
         })
@@ -96,31 +81,19 @@
       }
 
       const dados = await resposta.json();
-
       sinopseTraduzida = dados.traducao || '';
-
     } catch {
       erroTraducao = true;
-
     } finally {
       traduzindo = false;
     }
   }
 
-  // ========================================
-  // IDENTIFICAR A OBRA NA API EXTERNA
-  // ========================================
-
   function identificarObraExterna(obraAtual) {
-    const endereco = String(
-      obraAtual?.api_url || ''
-    );
+    const endereco = String(obraAtual?.api_url || '');
 
     if (obraAtual?.tipo_obra === 'HQ') {
-      const encontrado = endereco.match(
-        /4050-(\d+)/
-      );
-
+      const encontrado = endereco.match(/4050-(\d+)/);
       return encontrado ? encontrado[1] : null;
     }
 
@@ -131,15 +104,8 @@
     return encontrado ? encontrado[1] : null;
   }
 
-  // ========================================
-  // QUANTIDADE DE VOLUMES OU EDIÇÕES
-  // ========================================
-
-  let etiquetaQuantidade = $derived(
-    obra?.tipo_obra === 'HQ'
-      ? 'Edições'
-      : 'Volumes'
-  );
+  // Padronização da nomenclatura exibida na interface.
+  const etiquetaQuantidade = 'Volumes';
 
   let quantidadeExibida = $derived(
     quantidadeExterna?.quantidade ??
@@ -150,14 +116,20 @@
     )
   );
 
-  let anoPublicacao = $derived(
-    obra?.data_publicacao
-      ? new Date(
-          obra.data_publicacao
-        ).getFullYear()
-      : null
-  );
+  // Mangás: mês/ano. HQs: ano.
+  let dataPublicacao = $derived.by(() => {
+    if (!obra?.data_publicacao) return null;
 
+    const [ano, mes] = String(obra.data_publicacao)
+      .slice(0, 7)
+      .split('-');
+
+    return obra.tipo_obra === 'HQ'
+      ? ano
+      : `${mes}/${ano}`;
+  });
+
+  // Notas armazenadas de 1 a 10; exibidas de 0 a 5.
   let nota = $derived(
     typeof obra?.media_notas === 'number'
       ? obra.media_notas / 2
@@ -168,10 +140,7 @@
     quantidadeExterna = null;
     observacaoQuantidade = '';
 
-    const idExterno = identificarObraExterna(
-      obraAtual
-    );
-
+    const idExterno = identificarObraExterna(obraAtual);
     if (!idExterno) return;
 
     carregandoQuantidade = true;
@@ -192,26 +161,16 @@
 
       quantidadeExterna = await resposta.json();
 
-      observacaoQuantidade =
-        quantidadeExterna.observacao || '';
-
+      observacaoQuantidade = quantidadeExterna.observacao
+        ? 'A quantidade representa os volumes da obra informados pela fonte consultada.'
+        : '';
     } catch {
       observacaoQuantidade =
         'Não foi possível atualizar a quantidade pela API externa.';
-
     } finally {
       carregandoQuantidade = false;
     }
   }
-
-  // ========================================
-  // CONSULTAR A MINHA ESTANTE
-  // ========================================
-
-  // Esta função verifica se a obra está na
-  // estante e qual etiqueta foi selecionada.
-  //
-  // Não consulta o checklist.
 
   async function verificarEstante() {
     const itens = await requisicao('/estante');
@@ -224,20 +183,12 @@
       : null;
 
     naEstante = Boolean(registro);
-
-    // O status vem do PostgreSQL,
-    // pela API do backend.
     statusLeitura = registro?.status || null;
   }
-
-  // ========================================
-  // CARREGAR OS DETALHES
-  // ========================================
 
   async function carregar() {
     erro = '';
     aviso = '';
-
     carregando = true;
 
     autenticado = Boolean(obterToken());
@@ -262,95 +213,59 @@
         `/obras/${encodeURIComponent(id)}`
       );
 
-      // Essas consultas são independentes.
-
+      // Consultas independentes.
       void traduzirSinopse(obra.sinopse);
       void consultarQuantidade(obra);
 
-      // Verificar se está na estante
-      // e recuperar o status de leitura.
-
       try {
         await verificarEstante();
-
       } catch (falha) {
         console.warn(
           'Não foi possível consultar a estante:',
           falha.message
         );
       }
-
     } catch (falha) {
       erro = falha.message;
-
     } finally {
       carregando = false;
     }
   }
 
-  // ========================================
-  // ADICIONAR À MINHA ESTANTE
-  // ========================================
-
   async function adicionar() {
-    if (
-      !obra ||
-      processando ||
-      naEstante
-    ) {
-      return;
-    }
+    if (!obra || processando || naEstante) return;
 
     processando = true;
-
     erro = '';
     aviso = '';
 
     try {
-      const registro = await requisicao(
-        '/estante',
-        {
-          metodo: 'POST',
-          dados: {
-            obras_id: obra.id
-          }
-        }
-      );
+      const registro = await requisicao('/estante', {
+        metodo: 'POST',
+        dados: { obras_id: obra.id }
+      });
 
-      // O botão muda após a confirmação.
       naEstante = true;
+      statusLeitura = registro?.status || 'Quero Ler';
 
-      // O backend normalmente inicia
-      // o status como Quero Ler.
-      statusLeitura =
-        registro?.status || 'Quero Ler';
-
-      // Confirma o status salvo no banco.
       try {
         await verificarEstante();
       } catch {
         // A inclusão já foi confirmada.
-        // Mantemos o botão como adicionado.
       }
 
-      aviso =
-        'Obra adicionada à sua estante!';
-
+      aviso = 'Obra adicionada à sua estante!';
     } catch (falha) {
-      if (
-        falha.message.toLowerCase().includes('já está')
-      ) {
+      if (falha.message.toLowerCase().includes('já está')) {
         try {
           await verificarEstante();
         } catch {
           erro =
             'A obra já está na estante, mas não foi possível consultar seu status.';
         }
-
       } else {
         erro = falha.message;
       }
-
     } finally {
       processando = false;
     }
@@ -362,31 +277,21 @@
 <Cabecalho />
 
 <main class="detalhes-pagina">
-
-  <!-- Navegação -->
-
   <div class="trilha-navegacao">
-
-    <a href="/catalogo">
-      ← CATÁLOGO
-    </a>
+    <a href="/catalogo">← CATÁLOGO</a>
 
     {#if obra}
       <span>/ {obra.titulo}</span>
     {/if}
-
   </div>
 
   {#if carregando}
-
     <div class="estado-detalhes" role="status">
       CARREGANDO INFORMAÇÕES DA OBRA...
     </div>
 
   {:else if !autenticado}
-
     <div class="estado-detalhes">
-
       <h1>DESCUBRA OS DETALHES!</h1>
 
       <p>
@@ -394,75 +299,42 @@
         das obras e organizar sua estante.
       </p>
 
-      <a
-        class="botao-comic azul"
-        href="/login"
-      >
+      <a class="botao-comic azul" href="/login">
         FAZER LOGIN
       </a>
-
     </div>
 
   {:else if !obra}
-
     <div class="estado-detalhes" role="alert">
-
       <h1>OBRA NÃO ENCONTRADA</h1>
 
       <p>
-        {erro ||
-          'Não foi possível carregar esta obra.'}
+        {erro || 'Não foi possível carregar esta obra.'}
       </p>
 
-      <a
-        class="botao-comic azul"
-        href="/catalogo"
-      >
+      <a class="botao-comic azul" href="/catalogo">
         VOLTAR AO CATÁLOGO
       </a>
-
     </div>
 
   {:else}
-
-    <!-- INFORMAÇÕES PRINCIPAIS -->
-
-    <section
-      class="ficha-obra"
-      aria-labelledby="nome-obra"
-    >
-
-      <!-- CAPA E BOTÃO -->
-
+    <section class="ficha-obra" aria-labelledby="nome-obra">
       <div class="coluna-capa">
-
         <div class="moldura-capa">
-
           {#if obra.capa_url}
-
             <img
               src={obra.capa_url}
               alt={`Capa de ${obra.titulo}`}
             />
-
           {:else}
-
             <div class="sem-capa">
               CAPA INDISPONÍVEL
             </div>
-
           {/if}
-
         </div>
 
-        <!-- BOTÃO ADICIONADO À ESTANTE -->
-
         {#if naEstante}
-
-          <span
-            class="botao-comic adicionado"
-            role="status"
-          >
+          <span class="botao-comic adicionado" role="status">
             ✓ ADICIONADO À ESTANTE
           </span>
 
@@ -472,90 +344,51 @@
           >
             ☑ VER CHECKLIST
           </a>
-
         {:else}
-
           <button
             class="botao-comic rosa"
             type="button"
             disabled={processando}
             onclick={adicionar}
           >
-
             {processando
               ? 'ADICIONANDO...'
               : '✦ ADICIONAR À MINHA ESTANTE'}
-
           </button>
 
           <span class="indicacao-estante">
             GUARDE SUAS OBRAS FAVORITAS
           </span>
-
         {/if}
-
       </div>
 
-      <!-- DADOS DA OBRA -->
-
       <div class="informacoes-obra">
-
         <p class="linha-categoria">
-
-          ✦ {obra.tipo_obra === 'HQ'
-            ? 'HQ'
-            : 'MANGÁ'}
+          ✦ {obra.tipo_obra === 'HQ' ? 'HQ' : 'MANGÁ'}
 
           {obra.editora
             ? `· ${obra.editora.toUpperCase()}`
             : ''}
 
-          {anoPublicacao
-            ? `· ${anoPublicacao}`
-            : ''}
-
+          {dataPublicacao ? `· ${dataPublicacao}` : ''}
         </p>
 
-        <h1 id="nome-obra">
-          {obra.titulo}
-        </h1>
+        <h1 id="nome-obra">{obra.titulo}</h1>
 
         <p class="subinformacao">
-
-          {obra.editora ||
-            'Editora não informada'}
-
-          ·
+          {obra.editora || 'Editora não informada'} ·
 
           {#if quantidadeExibida !== null}
-
             {quantidadeExibida}
-
-            {obra.tipo_obra === 'HQ'
-              ? 'edições'
-              : quantidadeExibida === 1
-                ? 'volume'
-                : 'volumes'}
-
+            {quantidadeExibida === 1 ? 'volume' : 'volumes'}
           {:else}
-
             Quantidade não informada
-
           {/if}
-
         </p>
 
-        <!-- GÊNEROS -->
-
         {#if obra.generos?.length}
-
-          <div
-            class="generos"
-            aria-label="Gêneros da obra"
-          >
-
+          <div class="generos" aria-label="Gêneros da obra">
             {#each obra.generos as nome, indice (nome)}
-
               <span
                 class:genero-roxo={indice % 4 === 1}
                 class:genero-azul={indice % 4 === 2}
@@ -563,25 +396,17 @@
               >
                 {generoPTBR(nome)}
               </span>
-
             {/each}
-
           </div>
-
         {/if}
 
-        <!-- AVALIAÇÃO -->
-
         <div class="avaliacao-obra">
-
           {#if nota !== null}
-
             <span
               class="estrelas"
               aria-label={`Nota média ${nota} de 5`}
             >
-              {'★'.repeat(Math.round(nota / 2))}
-              {'☆'.repeat(
+              {'★'.repeat(Math.round(nota))}{'☆'.repeat(
                 5 - Math.round(nota)
               )}
             </span>
@@ -591,98 +416,50 @@
             </strong>
 
             <small>
-              / 5 ·
-              {obra.total_avaliacoes || 0}
-              avaliações
+              / 5 · {obra.total_avaliacoes || 0} avaliações
             </small>
-
           {:else}
-
             <span class="sem-avaliacoes">
               ☆ AINDA SEM AVALIAÇÕES
             </span>
-
           {/if}
-
         </div>
 
-        <!-- ==================================
-             INDICADORES DA OBRA
-             ================================== -->
-
         <div class="indicadores">
-
-          <!-- STATUS DE LEITURA -->
-
           {#if naEstante}
-
             <div
               class="indicador indicador-status"
               style:background={corStatus(statusLeitura)}
             >
-
-              <strong>
-                {statusLeitura || '—'}
-              </strong>
-
-              <small>
-                Status da leitura
-              </small>
-
+              <strong>{statusLeitura || '—'}</strong>
+              <small>Status da leitura</small>
             </div>
-
           {/if}
 
-          <!-- VOLUMES OU EDIÇÕES -->
-
           <div class="indicador indicador-amarelo">
-
             <strong>
-
               {carregandoQuantidade
                 ? '…'
                 : quantidadeExibida ?? '—'}
-
             </strong>
-
-            <small>
-              {etiquetaQuantidade}
-            </small>
-
+            <small>{etiquetaQuantidade}</small>
           </div>
 
-          <!-- EDITORA -->
-
           {#if obra.editora}
-
             <div class="indicador indicador-roxo">
-
-              <strong>
-                {obra.editora}
-              </strong>
-
-              <small>
-                Editora
-              </small>
-
+              <strong>{obra.editora}</strong>
+              <small>Editora</small>
             </div>
-
           {/if}
-
         </div>
 
-        <!-- INFORMAÇÃO ADICIONAL -->
-
         {#if observacaoQuantidade}
-
           <p class="aviso-quantidade">
             {observacaoQuantidade}
           </p>
-
         {/if}
 
         {#if obra.api_url}
-
           <a
             class="link-origem"
             href={obra.api_url}
@@ -691,57 +468,32 @@
           >
             VER FONTE DA OBRA ↗
           </a>
-
         {/if}
-
       </div>
-
     </section>
 
-    <!-- MENSAGENS -->
-
     {#if aviso}
-
-      <p
-        class="feedback sucesso"
-        role="status"
-      >
+      <p class="feedback sucesso" role="status">
         {aviso}
       </p>
-
     {/if}
 
     {#if erro}
-
-      <p
-        class="feedback falha"
-        role="alert"
-      >
+      <p class="feedback falha" role="alert">
         {erro}
       </p>
-
     {/if}
 
-    <!-- SINOPSE -->
-
     <section class="painel-informativo">
-
       <h2>SINOPSE</h2>
 
       {#if traduzindo}
-
-        <p
-          class="traducao-status"
-          role="status"
-        >
-          Traduzindo a sinopse
-          para português (Brasil)...
+        <p class="traducao-status" role="status">
+          Traduzindo a sinopse para português (Brasil)...
         </p>
-
       {/if}
 
       {#if erroTraducao}
-
         <p class="traducao-status">
           A tradução está indisponível no momento.
           Exibindo o texto original.
@@ -751,12 +503,10 @@
           class="tentar-traduzir"
           type="button"
           disabled={traduzindo}
-          onclick={() =>
-            traduzirSinopse(obra.sinopse)}
+          onclick={() => traduzirSinopse(obra.sinopse)}
         >
           TENTAR TRADUÇÃO NOVAMENTE
         </button>
-
       {/if}
 
       <p>
@@ -764,13 +514,10 @@
           obra.sinopse ||
           'Sinopse indisponível para esta obra.'}
       </p>
-
     </section>
 
     <Resenhas obraId={obra.id} {naEstante} />
-
   {/if}
-
 </main>
 
 <style>
@@ -778,8 +525,6 @@
     width: min(100% - 40px, 1020px);
     margin: 28px auto 70px;
   }
-
-  /* NAVEGAÇÃO */
 
   .trilha-navegacao {
     display: flex;
@@ -809,8 +554,6 @@
     color: #847889;
   }
 
-  /* PAINÉIS */
-
   .ficha-obra,
   .painel-informativo,
   .estado-detalhes {
@@ -826,8 +569,6 @@
     gap: 28px;
     padding: 22px;
   }
-
-  /* CAPA */
 
   .coluna-capa {
     display: flex;
@@ -863,8 +604,6 @@
     text-align: center;
     font: 22px 'Bangers', Impact, sans-serif;
   }
-
-  /* BOTÕES */
 
   .botao-comic {
     display: inline-flex;
@@ -908,8 +647,6 @@
     text-align: center;
   }
 
-  /* INFORMAÇÕES */
-
   .informacoes-obra {
     min-width: 0;
     padding-top: 1px;
@@ -933,9 +670,9 @@
   .informacoes-obra h1 {
     color: #823df0;
     font-size: clamp(36px, 5vw, 55px);
-    line-height: 1;
+    line-height: 1.12;
     text-shadow: 4px 4px #ddc9eb;
-    margin: 8px 0 6px;
+    margin: 8px 0 8px;
     overflow-wrap: anywhere;
   }
 
@@ -944,8 +681,6 @@
     font-size: 12px;
     margin: 0;
   }
-
-  /* GÊNEROS */
 
   .generos {
     display: flex;
@@ -978,8 +713,6 @@
     color: #21172c;
   }
 
-  /* AVALIAÇÃO */
-
   .avaliacao-obra {
     display: flex;
     flex-wrap: wrap;
@@ -1008,8 +741,6 @@
     font-size: 17px;
   }
 
-  /* INDICADORES */
-
   .indicadores {
     display: flex;
     flex-wrap: wrap;
@@ -1020,22 +751,16 @@
     min-width: 90px;
     min-height: 48px;
     max-width: 210px;
-
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-
     padding: 5px 13px;
-
     border: 2px solid #292033;
     border-radius: 7px;
     box-shadow: 3px 4px #292033;
-
     text-align: center;
   }
-
-  /* A cor do status vem da função corStatus() */
 
   .indicador-status {
     color: #292033;
@@ -1073,8 +798,6 @@
     margin-top: 24px;
     text-decoration: underline;
   }
-
-  /* SINOPSE */
 
   .painel-informativo {
     padding: 20px 22px;
@@ -1115,8 +838,6 @@
     margin-bottom: 12px;
   }
 
-  /* AVISOS */
-
   .feedback {
     margin: 25px 0 -10px;
     border: 2px solid;
@@ -1134,8 +855,6 @@
     border-color: #fb4269;
   }
 
-  /* TELA DE ESTADO */
-
   .estado-detalhes {
     padding: 40px 28px;
     text-align: center;
@@ -1150,8 +869,6 @@
     margin: 15px auto 26px;
     max-width: 500px;
   }
-
-  /* RESPONSIVIDADE */
 
   @media (max-width: 680px) {
     .detalhes-pagina {

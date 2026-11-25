@@ -1,3 +1,4 @@
+
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -11,16 +12,20 @@
   let tipo = $state('');
   let editora = $state('');
   let genero = $state('');
+  let filtrosAbertos = $state(false);
+
   let carregando = $state(true);
   let executando = $state(null);
   let erro = $state('');
   let avisos = $state([]);
   let mensagem = $state('');
   let adicionadas = $state([]);
+
   let pagina = $state(1);
   let temProxima = $state(false);
 
   let abortController = null;
+  let temporizadorMensagem;
 
   let editoras = $derived(
     [...new Set(
@@ -41,7 +46,15 @@
     )
   );
 
-  // Carregar obras da Tenrai e da Comic Vine.
+  function notificar(texto) {
+    clearTimeout(temporizadorMensagem);
+
+    mensagem = texto;
+
+    temporizadorMensagem = setTimeout(() => {
+      mensagem = '';
+    }, 4500);
+  }
 
   async function carregar(novaPagina = 1) {
     if (abortController) {
@@ -69,7 +82,9 @@
       );
 
       if (!resposta.ok) {
-        throw new Error('Não foi possível carregar o catálogo.');
+        throw new Error(
+          'Não foi possível carregar o catálogo.'
+        );
       }
 
       const dados = await resposta.json();
@@ -101,12 +116,12 @@
 
   function buscar(evento) {
     evento.preventDefault();
-    carregar(1);
+    void carregar(1);
   }
 
   function mudarTipo(novoTipo) {
     tipo = novoTipo;
-    carregar(1);
+    void carregar(1);
   }
 
   function trocarPagina(novaPagina) {
@@ -118,16 +133,13 @@
       return;
     }
 
-    carregar(novaPagina);
+    void carregar(novaPagina);
 
     window.scrollTo({
       top: 0,
       behavior: 'smooth'
     });
   }
-
-  // Identifica a obra por seu registro externo,
-  // independentemente do ID do PostgreSQL.
 
   function chaveDaObra(obra) {
     const origem = String(obra?.api_url || '')
@@ -154,8 +166,6 @@
   function estaAdicionada(obra) {
     return adicionadas.includes(chaveDaObra(obra));
   }
-
-  // Verificar a estante do usuário conectado.
 
   async function carregarEstante() {
     estaLogado = Boolean(obterToken());
@@ -187,9 +197,6 @@
       .trim();
   }
 
-  // Localiza a obra no FastAPI para obter o ID
-  // utilizado pelo banco de dados.
-
   async function encontrarNoBackend(obra) {
     const caminho =
       `/obras?busca=${encodeURIComponent(obra.titulo)}` +
@@ -198,7 +205,9 @@
     const resultados = await requisicao(caminho);
 
     if (!Array.isArray(resultados)) {
-      throw new Error('O backend retornou dados inesperados.');
+      throw new Error(
+        'O backend retornou dados inesperados.'
+      );
     }
 
     const urlExterna = String(obra.api_url || '')
@@ -223,8 +232,6 @@
     return encontrada.id;
   }
 
-  // Abrir detalhes exige login.
-
   async function abrirDetalhes(obra) {
     if (!obterToken()) {
       await goto('/login');
@@ -238,6 +245,7 @@
 
     try {
       const idBanco = await encontrarNoBackend(obra);
+
       await goto(`/obra/${idBanco}`);
     } catch (falha) {
       erro = falha.message;
@@ -245,8 +253,6 @@
       executando = null;
     }
   }
-
-  // Adicionar à estante e mudar a cor do botão.
 
   async function adicionar(obra) {
     if (!obterToken()) {
@@ -275,7 +281,6 @@
         }
       });
 
-      // Muda o botão após o backend confirmar.
       adicionadas = [
         ...new Set([
           ...adicionadas,
@@ -283,8 +288,9 @@
         ])
       ];
 
-      mensagem = `“${obra.titulo}” foi adicionada à sua estante!`;
-
+      notificar(
+        `“${obra.titulo}” foi adicionada à sua estante!`
+      );
     } catch (falha) {
       if (
         falha.message.toLowerCase().includes('já está')
@@ -296,7 +302,7 @@
           ])
         ];
 
-        mensagem = 'Essa obra já está na sua estante.';
+        notificar('Essa obra já está na sua estante.');
       } else {
         erro = falha.message;
       }
@@ -308,60 +314,123 @@
   onMount(() => {
     estaLogado = Boolean(obterToken());
 
-    carregar(1);
+    void carregar(1);
     void carregarEstante();
 
-    return () => abortController?.abort();
+    return () => {
+      abortController?.abort();
+      clearTimeout(temporizadorMensagem);
+    };
   });
 </script>
 
 <Cabecalho />
 
 <main class="catalogo">
-
   <h1>CATÁLOGO &amp; BUSCA</h1>
 
-  <form class="barra-busca" onsubmit={buscar}>
-    <input
-      bind:value={busca}
-      aria-label="Pesquisar obras"
-      placeholder="Pesquisar mangás e HQs..."
-      maxlength="100"
-    />
+  <div class="area-pesquisa">
+    <form class="barra-busca" onsubmit={buscar}>
+      <label class="oculto" for="catalogo-busca">
+        Pesquisar mangás e HQs
+      </label>
 
-    <button
-      class="botao-buscar"
-      type="submit"
-      disabled={carregando}
-    >
-      {carregando ? 'CARREGANDO...' : '⌕ BUSCAR'}
-    </button>
-  </form>
+      <input
+        id="catalogo-busca"
+        bind:value={busca}
+        placeholder="Pesquisar mangás e HQs..."
+        maxlength="100"
+      />
 
-  <div class="painel-filtros">
-    <strong>FILTRAR POR:</strong>
+      <button
+        class="botao-filtro"
+        class:aberto={filtrosAbertos}
+        type="button"
+        aria-label={filtrosAbertos
+          ? 'Ocultar filtros'
+          : 'Mostrar filtros'}
+        aria-expanded={filtrosAbertos}
+        onclick={() => filtrosAbertos = !filtrosAbertos}
+        title={filtrosAbertos
+          ? 'Ocultar filtros'
+          : 'Mostrar filtros'}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          width="23"
+          height="23"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M4 5h16l-6.5 7.5V19l-3-1.6v-4.9L4 5Z" />
+        </svg>
+      </button>
 
-    <label>
-      EDITORA
-      <select bind:value={editora} disabled={!editoras.length}>
-        <option value="">TODAS</option>
+      <button
+        class="botao-buscar"
+        type="submit"
+        disabled={carregando}
+      >
+        {carregando ? 'CARREGANDO...' : '⌕ BUSCAR'}
+      </button>
+    </form>
 
-        {#each editoras as nome (nome)}
-          <option value={nome}>{nome}</option>
-        {/each}
-      </select>
-    </label>
+    {#if filtrosAbertos}
+      <div class="painel-filtros" id="filtros-catalogo">
+        <strong>FILTRAR POR:</strong>
 
-    <label>
-      GÊNERO
-      <select bind:value={genero} disabled={!generos.length}>
-        <option value="">TODOS</option>
+        <label>
+          EDITORA
 
-        {#each generos as nome (nome)}
-          <option value={nome}>{nome}</option>
-        {/each}
-      </select>
-    </label>
+          <select
+            bind:value={editora}
+            disabled={!editoras.length}
+          >
+            <option value="">TODAS</option>
+
+            {#each editoras as nome (nome)}
+              <option value={nome}>
+                {nome}
+              </option>
+            {/each}
+          </select>
+        </label>
+
+        <label>
+          GÊNERO
+
+          <select
+            bind:value={genero}
+            disabled={!generos.length}
+          >
+            <option value="">TODOS</option>
+
+            {#each generos as nome (nome)}
+              <option value={nome}>
+                {nome}
+              </option>
+            {/each}
+          </select>
+        </label>
+
+        <button
+          type="button"
+          class="limpar-filtros"
+          disabled={!editora && !genero}
+          onclick={() => {
+            editora = '';
+            genero = '';
+          }}
+        >
+          LIMPAR FILTROS
+        </button>
+      </div>
+    {/if}
   </div>
 
   <div class="abas-tipo">
@@ -400,7 +469,9 @@
     </h2>
 
     {#if estaLogado}
-      <p>Descubra novas obras para adicionar à sua estante.</p>
+      <p>
+        Descubra novas obras para adicionar à sua estante.
+      </p>
     {:else}
       <p>
         Explore mangás e HQs sem precisar fazer login.
@@ -439,11 +510,12 @@
     </p>
 
   {:else}
-    <section class="grade" aria-label="Obras do catálogo">
-
+    <section
+      class="grade"
+      aria-label="Obras do catálogo"
+    >
       {#each obrasFiltradas as obra (obra.id)}
         <article class="card">
-
           <button
             class="capa"
             type="button"
@@ -507,7 +579,6 @@
           </div>
         </article>
       {/each}
-
     </section>
   {/if}
 
@@ -536,11 +607,10 @@
     </nav>
   {/if}
 
-  <p class="nota">
+  <p class="nota-rodape">
     Detalhes e estante exigem login.
     Mangás: Tenrai. HQs: Comic Vine.
   </p>
-
 </main>
 
 <style>
@@ -561,13 +631,18 @@
     color: #823cf2;
     text-shadow: 4px 4px #d8cae6;
     font-size: clamp(40px, 5vw, 64px);
+    line-height: 1.2;
     margin: 0 0 28px;
+  }
+
+  .area-pesquisa {
+    margin-bottom: 16px;
   }
 
   .barra-busca {
     display: flex;
+    align-items: stretch;
     gap: 12px;
-    margin-bottom: 16px;
   }
 
   .barra-busca input {
@@ -581,16 +656,42 @@
     background: white;
   }
 
+  .botao-filtro {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 54px;
+    border: 2px solid #292033;
+    border-radius: 8px;
+    box-shadow: 3px 4px #292033;
+    background: #fffdf8;
+    color: #292033;
+    cursor: pointer;
+  }
+
+  .botao-filtro:hover,
+  .botao-filtro:focus-visible {
+    background: #f3e9ff;
+  }
+
+  .botao-filtro.aberto {
+    background: #ffda0d;
+  }
+
   .botao-buscar,
   .adicionar {
     border: 2px solid #292033;
     border-radius: 8px;
     box-shadow: 3px 4px #292033;
     padding: 11px 16px;
-    background: #ff426a;
+    background: #ff416b;
     color: white;
     font-size: 19px;
     cursor: pointer;
+  }
+
+  .botao-buscar {
+    min-width: 132px;
   }
 
   .botao-buscar:disabled {
@@ -601,10 +702,11 @@
   .painel-filtros {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-end;
     gap: 18px;
-    background: #fff9f3;
+    margin-top: 17px;
     padding: 17px 20px;
+    background: #fff9f3;
     border: 2px solid #292033;
     border-radius: 9px;
     box-shadow: 4px 4px #292033;
@@ -613,6 +715,7 @@
   .painel-filtros strong {
     font-size: 21px;
     padding-right: 12px;
+    align-self: center;
   }
 
   .painel-filtros label {
@@ -630,6 +733,16 @@
     padding: 8px;
     background: white;
     font-size: 13px;
+  }
+
+  .limpar-filtros {
+    padding: 9px 12px;
+    background: #fffdf8;
+    border: 2px solid #292033;
+    border-radius: 7px;
+    box-shadow: 3px 3px #292033;
+    font-size: 15px;
+    cursor: pointer;
   }
 
   .abas-tipo {
@@ -663,10 +776,11 @@
     margin: 0;
     color: #823cf2;
     font-size: 30px;
+    line-height: 1.2;
   }
 
   .titulo-secao p {
-    margin: 2px 0 0;
+    margin: 6px 0 0;
     color: #8a8093;
     font-size: 13px;
   }
@@ -739,7 +853,7 @@
 
   .informacoes h3 {
     margin: 0;
-    font: 21px/1 'Bangers', Impact, sans-serif;
+    font: 21px/1.05 'Bangers', Impact, sans-serif;
     overflow-wrap: anywhere;
   }
 
@@ -756,20 +870,12 @@
     font-size: 15px;
   }
 
-  /* BOTÃO ADICIONADO - AMARELO */
-
-  .adicionar.adicionada {
-    background: #ffda0d;
-    color: #292033;
-    cursor: default;
-    opacity: 1;
-  }
-
+  .adicionar.adicionada,
   .adicionar.adicionada:disabled {
     background: #ffda0d;
     color: #292033;
-    opacity: 1;
     cursor: default;
+    opacity: 1;
   }
 
   .detalhes {
@@ -839,11 +945,20 @@
     white-space: nowrap;
   }
 
-  .nota {
+  .nota-rodape {
     margin: 24px 0;
     font-size: 12px;
     color: #817688;
     text-align: center;
+  }
+
+  .oculto {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 
   @media (max-width: 900px) {
@@ -857,13 +972,24 @@
       width: calc(100% - 28px);
     }
 
+    .barra-busca {
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .barra-busca input {
-      padding: 9px;
-      font-size: 13px;
+      flex: 1 0 calc(100% - 60px);
+      padding: 11px;
+      font-size: 14px;
+    }
+
+    .botao-filtro {
+      flex-basis: 48px;
     }
 
     .botao-buscar {
-      padding: 8px;
+      flex: 1;
+      min-height: 45px;
       font-size: 16px;
     }
 

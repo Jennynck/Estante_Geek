@@ -47,10 +47,10 @@
 
   let total = $derived(volumes.length);
   let lidos = $derived(volumes.filter((v) => v.lido).length);
-  let possuidos = $derived(volumes.filter((v) => v.possui_volume).length);
   let naoLidos = $derived(total - lidos);
   let progresso = $derived(total ? Math.round((lidos / total) * 100) : 0);
 
+  // HQ é dividida em edições; mangá, em volumes.
   let rotulo = $derived(ehHQ ? 'ED.' : 'VOL.');
   let textoLidos = $derived(ehHQ ? 'edições lidas' : 'volumes lidos');
   let titulosSecao = $derived(ehHQ ? 'EDIÇÕES DA SÉRIE' : 'VOLUMES DA SÉRIE');
@@ -80,34 +80,30 @@
     );
   }
 
-  // campo: 'lido' ou 'possui_volume'
-  async function alterar(linha, campo) {
+  async function alterar(linha) {
     if (salvando !== null) return;
 
     const volumeId = linha.volume.id;
-    const novoValor = !linha[campo];
+    const novoValor = !linha.lido;
 
     salvando = volumeId;
     erro = '';
 
     // Atualiza na hora e desfaz se o backend falhar.
-    atualizarLocal(volumeId, { [campo]: novoValor });
+    atualizarLocal(volumeId, { lido: novoValor });
 
     try {
       const salvo = await requisicao(
         `/estante/${encodeURIComponent(id)}/volumes/${volumeId}`,
         {
           metodo: 'PATCH',
-          dados: { [campo]: novoValor }
+          dados: { lido: novoValor }
         }
       );
 
-      atualizarLocal(volumeId, {
-        lido: salvo.lido,
-        possui_volume: salvo.possui_volume
-      });
+      atualizarLocal(volumeId, { lido: salvo.lido });
     } catch (falha) {
-      atualizarLocal(volumeId, { [campo]: !novoValor });
+      atualizarLocal(volumeId, { lido: !novoValor });
       erro = falha.message;
     } finally {
       salvando = null;
@@ -203,7 +199,6 @@
         <p class="contadores">
           <span class="c-roxo">{lidos} {lidos === 1 ? 'Lido' : 'Lidos'}</span>
           <span class="c-rosa">{naoLidos} Não {naoLidos === 1 ? 'lido' : 'lidos'}</span>
-          <span class="c-azul">{possuidos} Na coleção</span>
           <span>{total} Total</span>
         </p>
       </div>
@@ -224,15 +219,10 @@
           <span class="amostra cinza"></span>
           Cinza = Não lido
         </div>
-
-        <div>
-          <span class="amostra amarelo"></span>
-          Amarelo = Você tem o exemplar
-        </div>
       </div>
     </section>
 
-    <!-- VOLUMES -->
+    <!-- VOLUMES / EDIÇÕES -->
 
     <div class="titulo-secao">
       <h2>{titulosSecao}</h2>
@@ -258,21 +248,11 @@
             aria-label={`${rotulo} ${linha.volume.numero_volume}: ${
               linha.lido ? 'lido' : 'não lido'
             }. Clique para alternar.`}
-            onclick={() => alterar(linha, 'lido')}
+            onclick={() => alterar(linha)}
           >
             <small>{rotulo}</small>
             <strong>{linha.volume.numero_volume}</strong>
             <span>{linha.lido ? '✓ LIDO' : '○ NÃO LIDO'}</span>
-          </button>
-
-          <button
-            type="button"
-            class="possuo"
-            class:ativo={linha.possui_volume}
-            aria-pressed={linha.possui_volume}
-            onclick={() => alterar(linha, 'possui_volume')}
-          >
-            {linha.possui_volume ? '📚 TENHO' : 'NÃO TENHO'}
           </button>
         </li>
       {/each}
@@ -295,7 +275,6 @@
   .volume strong,
   .volume small,
   .volume span,
-  .possuo,
   .botao-comic {
     font-family: 'Bangers', Impact, sans-serif;
   }
@@ -471,10 +450,6 @@
     color: #ff456b;
   }
 
-  .c-azul {
-    color: #05a6d6;
-  }
-
   /* LEGENDA */
 
   .legenda {
@@ -515,10 +490,6 @@
 
   .amostra.cinza {
     background: #dcd8de;
-  }
-
-  .amostra.amarelo {
-    background: #ffda0d;
   }
 
   /* VOLUMES */
@@ -610,22 +581,6 @@
     margin-top: 4px;
     font-size: 12px;
     letter-spacing: 0.5px;
-  }
-
-  .possuo {
-    padding: 4px 2px;
-    background: #fff9f2;
-    color: #8b8390;
-    border: 2px solid #b8b0bc;
-    border-radius: 6px;
-    font-size: 12px;
-    cursor: pointer;
-  }
-
-  .possuo.ativo {
-    background: #ffda0d;
-    color: #292033;
-    border-color: #292033;
   }
 
   /* AVISOS */

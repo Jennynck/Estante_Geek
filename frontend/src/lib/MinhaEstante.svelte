@@ -1,3 +1,4 @@
+
 <script>
   import { onMount } from 'svelte';
   import Cabecalho from '$lib/Cabecalho.svelte';
@@ -12,15 +13,21 @@
 
   let salvandoId = $state(null);
   let removendoId = $state(null);
+  let obraParaRemover = $state(null);
 
   let erro = $state('');
   let aviso = $state('');
+  let temporizadorMensagem;
 
-  const etiquetas = ['Quero Ler', 'Lendo', 'Lido', 'Pausado'];
+  const etiquetas = [
+    'Quero Ler',
+    'Lendo',
+    'Lido',
+    'Pausado'
+  ];
 
   const filtros = ['TODOS', ...etiquetas];
 
-  // RN07 - Regras de transição dos status.
   const transicoes = {
     'Quero Ler': ['Lendo'],
     'Lendo': ['Lido', 'Pausado'],
@@ -34,10 +41,10 @@
       : itens.filter((item) => item.status === filtro)
   );
 
-  // Redes sociais cadastradas no perfil.
-
   function semArroba(valor) {
-    return String(valor || '').trim().replace(/^@+/, '');
+    return String(valor || '')
+      .trim()
+      .replace(/^@+/, '');
   }
 
   let redes = $derived.by(() => {
@@ -88,7 +95,10 @@
 
   function quantidade(opcao) {
     if (opcao === 'TODOS') return itens.length;
-    return itens.filter((item) => item.status === opcao).length;
+
+    return itens.filter(
+      (item) => item.status === opcao
+    ).length;
   }
 
   function nomeDaEtiqueta(status) {
@@ -96,16 +106,47 @@
   }
 
   function porcentagem(item) {
-    return Math.max(0, Math.min(100, Number(item.progresso) || 0));
+    return Math.max(
+      0,
+      Math.min(100, Number(item.progresso) || 0)
+    );
   }
 
   function unidade(item) {
-    return item.obra.tipo_obra === 'HQ' ? 'edições' : 'volumes';
+    return Number(item.obra.total_volumes) === 1
+      ? 'volume'
+      : 'volumes';
+  }
+
+  function avisar(mensagem) {
+    aviso = mensagem;
+    clearTimeout(temporizadorMensagem);
+
+    temporizadorMensagem = setTimeout(() => {
+      aviso = '';
+    }, 4500);
+  }
+
+  function solicitarRemocao(obra) {
+    if (salvandoId !== null || removendoId !== null) return;
+
+    obraParaRemover = obra;
+  }
+
+  function fecharRemocao() {
+    if (removendoId === null) {
+      obraParaRemover = null;
+    }
+  }
+
+  function aoTeclar(evento) {
+    if (evento.key === 'Escape') {
+      fecharRemocao();
+    }
   }
 
   async function carregar() {
     autenticado = Boolean(obterToken());
-
     erro = '';
     aviso = '';
 
@@ -127,7 +168,8 @@
         perfil = null;
       }
     } catch (falha) {
-      erro = falha.message || 'Não foi possível carregar a estante.';
+      erro =
+        falha.message || 'Não foi possível carregar a estante.';
     } finally {
       carregando = false;
     }
@@ -145,8 +187,8 @@
       seletor.value = statusAnterior;
 
       erro =
-        `Não é permitido mudar de ` +
-        `"${statusAnterior}" para "${novoStatus}".`;
+        `Não é permitido mudar de "${statusAnterior}" ` +
+        `para "${novoStatus}".`;
 
       return;
     }
@@ -163,10 +205,13 @@
     aviso = '';
 
     try {
-      const atualizado = await requisicao(`/estante/${obraId}`, {
-        metodo: 'PATCH',
-        dados: { status: novoStatus }
-      });
+      const atualizado = await requisicao(
+        `/estante/${obraId}`,
+        {
+          metodo: 'PATCH',
+          dados: { status: novoStatus }
+        }
+      );
 
       const statusSalvo = atualizado?.status || novoStatus;
 
@@ -176,17 +221,24 @@
           : registro
       );
 
-      if (statusAnterior === 'Lido' && novoStatus === 'Lendo') {
-        aviso = `Releitura de "${item.obra.titulo}" iniciada!`;
+      if (
+        statusAnterior === 'Lido' &&
+        novoStatus === 'Lendo'
+      ) {
+        avisar(
+          `Releitura de "${item.obra.titulo}" iniciada!`
+        );
       } else {
-        aviso =
-          `Status de "${item.obra.titulo}" ` +
-          `alterado para "${statusSalvo}".`;
+        avisar(
+          `Status de "${item.obra.titulo}" alterado para "${statusSalvo}".`
+        );
       }
     } catch (falha) {
       seletor.value = statusAnterior;
 
-      erro = 'Não foi possível salvar o status: ' + falha.message;
+      erro =
+        'Não foi possível salvar o status: ' +
+        falha.message;
     } finally {
       salvandoId = null;
     }
@@ -195,23 +247,21 @@
   async function remover(obra) {
     if (salvandoId !== null || removendoId !== null) return;
 
-    const confirmou = window.confirm(
-      `Deseja remover "${obra.titulo}" da sua estante?`
-    );
-
-    if (!confirmou) return;
-
     removendoId = obra.id;
-
     erro = '';
     aviso = '';
 
     try {
-      await requisicao(`/estante/${obra.id}`, { metodo: 'DELETE' });
+      await requisicao(`/estante/${obra.id}`, {
+        metodo: 'DELETE'
+      });
 
-      itens = itens.filter((item) => item.obra.id !== obra.id);
+      itens = itens.filter(
+        (item) => item.obra.id !== obra.id
+      );
 
-      aviso = `"${obra.titulo}" foi removida da estante.`;
+      avisar(`"${obra.titulo}" foi removida da estante.`);
+      obraParaRemover = null;
     } catch (falha) {
       erro = falha.message;
     } finally {
@@ -221,15 +271,18 @@
 
   onMount(() => {
     void carregar();
+
+    return () => {
+      clearTimeout(temporizadorMensagem);
+    };
   });
 </script>
+
+<svelte:window onkeydown={aoTeclar} />
 
 <Cabecalho />
 
 <main class="pagina-estante">
-
-  <!-- Perfil do usuário -->
-
   {#if perfil}
     <section class="painel-perfil">
       <div class="avatar">
@@ -240,7 +293,9 @@
 
       <div class="dados-perfil">
         <h2>
-          {perfil.nome_perfil || perfil.nome_usuario || 'Colecionador'}
+          {perfil.nome_perfil ||
+            perfil.nome_usuario ||
+            'Colecionador'}
         </h2>
 
         {#if redes.length}
@@ -271,7 +326,9 @@
     </section>
   {/if}
 
-  <p class="subtitulo">✦ SUA COLEÇÃO PESSOAL ✦</p>
+  <p class="subtitulo">
+    ✦ SUA COLEÇÃO PESSOAL ✦
+  </p>
 
   <h1>MINHA ESTANTE</h1>
 
@@ -284,43 +341,54 @@
       <button
         type="button"
         class:ativo={filtro === opcao}
-        onclick={() => (filtro = opcao)}
+        onclick={() => filtro = opcao}
       >
         {opcao.toUpperCase()}
-
         <span class="contador">{quantidade(opcao)}</span>
       </button>
     {/each}
   </div>
 
   {#if aviso}
-    <p class="mensagem sucesso" role="status">{aviso}</p>
+    <p class="mensagem sucesso" role="status">
+      {aviso}
+    </p>
   {/if}
 
   {#if erro}
-    <p class="mensagem falha" role="alert">{erro}</p>
+    <p class="mensagem falha" role="alert">
+      {erro}
+    </p>
   {/if}
 
   {#if carregando}
-    <div class="estado-vazio">Carregando sua estante...</div>
+    <div class="estado-vazio">
+      Carregando sua estante...
+    </div>
 
   {:else if !autenticado}
     <div class="estado-vazio">
       <p>Faça login para visualizar sua estante.</p>
 
-      <a class="botao-catalogo" href="/login">FAZER LOGIN</a>
+      <a class="botao-catalogo" href="/login">
+        FAZER LOGIN
+      </a>
     </div>
 
   {:else if itensFiltrados.length === 0}
     <div class="estado-vazio">
       <p>Nenhuma obra encontrada neste filtro.</p>
 
-      <a class="botao-catalogo" href="/catalogo">EXPLORAR CATÁLOGO →</a>
+      <a class="botao-catalogo" href="/catalogo">
+        EXPLORAR CATÁLOGO →
+      </a>
     </div>
 
   {:else}
-    <section class="grade-estante" aria-label="Obras da minha estante">
-
+    <section
+      class="grade-estante"
+      aria-label="Obras da minha estante"
+    >
       {#each itensFiltrados as item (item.id)}
         <article
           class="cartao-estante"
@@ -329,7 +397,6 @@
           class:s-lido={item.status === 'Lido'}
           class:s-pausado={item.status === 'Pausado'}
         >
-
           <a
             class="capa-obra"
             href={`/obra/${item.obra.id}`}
@@ -342,10 +409,14 @@
                 loading="lazy"
               />
             {:else}
-              <div class="capa-ausente">CAPA INDISPONÍVEL</div>
+              <div class="capa-ausente">
+                CAPA INDISPONÍVEL
+              </div>
             {/if}
 
-            <span class="etiqueta-status">{nomeDaEtiqueta(item.status)}</span>
+            <span class="etiqueta-status">
+              {nomeDaEtiqueta(item.status)}
+            </span>
 
             <span
               class="tipo-obra"
@@ -356,19 +427,18 @@
           </a>
 
           <div class="conteudo-cartao">
-
             <h3>{item.obra.titulo}</h3>
 
             <p class="editora">
               {item.obra.editora || 'Editora não informada'}
             </p>
 
-            <!-- Progresso -->
-
             <div class="progresso">
               <div class="progresso-linha">
                 <span>PROGRESSO</span>
-                <strong>{Math.round(porcentagem(item))}%</strong>
+                <strong>
+                  {Math.round(porcentagem(item))}%
+                </strong>
               </div>
 
               <div class="trilha">
@@ -381,10 +451,10 @@
               </small>
             </div>
 
-            <!-- Status de leitura -->
-
             <div class="area-status">
-              <label for={`status-${item.obra.id}`}>✦ STATUS DA LEITURA</label>
+              <label for={`status-${item.obra.id}`}>
+                ✦ STATUS DA LEITURA
+              </label>
 
               <select
                 id={`status-${item.obra.id}`}
@@ -410,15 +480,17 @@
               </select>
 
               {#if salvandoId === item.obra.id}
-                <p class="salvando" role="status">Salvando status...</p>
+                <p class="salvando" role="status">
+                  Salvando status...
+                </p>
               {/if}
 
               {#if item.status === 'Lido'}
-                <p class="ajuda-status">Você pode iniciar uma releitura.</p>
+                <p class="ajuda-status">
+                  Você pode iniciar uma releitura.
+                </p>
               {/if}
             </div>
-
-            <!-- Ações -->
 
             <div class="acoes-cartao">
               <a
@@ -428,7 +500,10 @@
                 ☑ VER CHECKLIST
               </a>
 
-              <a class="ver-detalhes" href={`/obra/${item.obra.id}`}>
+              <a
+                class="ver-detalhes"
+                href={`/obra/${item.obra.id}`}
+              >
                 VER DETALHES →
               </a>
 
@@ -436,28 +511,68 @@
                 class="remover"
                 type="button"
                 disabled={removendoId !== null || salvandoId !== null}
-                onclick={() => remover(item.obra)}
+                onclick={() => solicitarRemocao(item.obra)}
               >
-                {removendoId === item.obra.id ? 'REMOVENDO...' : '🗑 REMOVER'}
+                {removendoId === item.obra.id
+                  ? 'REMOVENDO...'
+                  : '🗑 REMOVER'}
               </button>
             </div>
-
           </div>
         </article>
       {/each}
-
     </section>
   {/if}
-
 </main>
+
+{#if obraParaRemover}
+  <div class="fundo-modal">
+    <section
+      class="janela-remocao"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="titulo-remocao"
+      aria-describedby="descricao-remocao"
+    >
+      <h2 id="titulo-remocao">
+        REMOVER DA ESTANTE
+      </h2>
+
+      <p id="descricao-remocao">
+        Deseja remover
+        <strong>{obraParaRemover.titulo}</strong>
+        da sua estante?
+      </p>
+
+      <div class="acoes-remocao">
+        <button
+          type="button"
+          onclick={fecharRemocao}
+          disabled={removendoId !== null}
+        >
+          CANCELAR
+        </button>
+
+        <button
+          type="button"
+          class="confirmar"
+          disabled={removendoId !== null}
+          onclick={() => remover(obraParaRemover)}
+        >
+          {removendoId !== null
+            ? 'REMOVENDO...'
+            : 'CONFIRMAR REMOÇÃO'}
+        </button>
+      </div>
+    </section>
+  </div>
+{/if}
 
 <style>
   .pagina-estante {
     width: min(100% - 40px, 1220px);
     margin: 32px auto 75px;
   }
-
-  /* Perfil */
 
   .painel-perfil {
     display: flex;
@@ -522,23 +637,13 @@
     overflow-wrap: anywhere;
   }
 
-  .rede.instagram {
-    background: #ff416b;
-  }
-
-  .rede.discord {
-    background: #6652ed;
-  }
-
-  .rede.x {
-    background: #292033;
-  }
+  .rede.instagram { background: #ff416b; }
+  .rede.discord { background: #6652ed; }
+  .rede.x { background: #292033; }
 
   a.rede:hover {
     transform: translateY(-1px);
   }
-
-  /* Título */
 
   .subtitulo {
     margin: 0;
@@ -558,8 +663,6 @@
     font-size: 13px;
     margin: 0 0 24px;
   }
-
-  /* Filtros */
 
   .filtros-estante {
     display: flex;
@@ -592,11 +695,12 @@
     font: 12px Arial, sans-serif;
   }
 
-  /* Grade */
-
+  /* Cards alinhados em linhas com altura padronizada. */
   .grade-estante {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    align-items: stretch;
     gap: 22px;
   }
 
@@ -607,6 +711,7 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+    height: 100%;
     overflow: hidden;
     background: #fff9f2;
     border: 3px solid #292033;
@@ -634,12 +739,11 @@
     --cor-texto: #292033;
   }
 
-  /* Capa */
-
   .capa-obra {
     display: block;
     width: 100%;
     height: 275px;
+    flex-shrink: 0;
     position: relative;
     background: #e9dfed;
     overflow: hidden;
@@ -701,8 +805,6 @@
     color: white;
   }
 
-  /* Informações */
-
   .conteudo-cartao {
     display: flex;
     flex-direction: column;
@@ -714,16 +816,20 @@
   .conteudo-cartao h3 {
     font: 23px/1.05 'Bangers', Impact, sans-serif;
     margin: 0;
+    min-height: 3.15em;
     overflow-wrap: anywhere;
   }
 
   .editora {
     margin: 0;
+    min-height: 2em;
     font-size: 12px;
     color: #978b9c;
   }
 
-  /* Progresso */
+  .progresso {
+    min-height: 59px;
+  }
 
   .progresso-linha {
     display: flex;
@@ -758,9 +864,8 @@
     font-size: 11px;
   }
 
-  /* Status */
-
   .area-status {
+    min-height: 106px;
     padding-top: 12px;
     border-top: 1px solid #dfd3dd;
   }
@@ -812,8 +917,7 @@
     color: #766882;
   }
 
-  /* Ações */
-
+  /* Botões presos ao final dos cards. */
   .acoes-cartao {
     display: flex;
     flex-direction: column;
@@ -863,8 +967,6 @@
     background: #ffe0e7;
   }
 
-  /* Mensagens */
-
   .mensagem {
     padding: 12px 15px;
     margin: 0 0 22px;
@@ -903,7 +1005,58 @@
     text-decoration: none;
   }
 
-  /* Responsividade */
+  .fundo-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(39, 28, 48, 0.6);
+  }
+
+  .janela-remocao {
+    width: min(100%, 490px);
+    padding: 25px;
+    background: #fff9f2;
+    border: 3px solid #292033;
+    border-top: 10px solid #823cf2;
+    border-radius: 13px;
+    box-shadow: 6px 7px 0 #292033;
+  }
+
+  .janela-remocao h2 {
+    margin: 0 0 15px;
+    color: #823cf2;
+    font: 30px/1.2 'Bangers', Impact, sans-serif;
+  }
+
+  .janela-remocao p {
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+
+  .acoes-remocao {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .acoes-remocao button {
+    padding: 10px 14px;
+    border: 2px solid #292033;
+    border-radius: 8px;
+    box-shadow: 3px 4px #292033;
+    background: #fff9f2;
+    font: 18px 'Bangers', Impact, sans-serif;
+  }
+
+  .acoes-remocao .confirmar {
+    background: #ff416b;
+    color: white;
+  }
 
   @media (max-width: 1000px) {
     .grade-estante {

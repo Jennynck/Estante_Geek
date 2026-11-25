@@ -1,18 +1,61 @@
 
 <script>
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
-  import { apagarToken, obterToken } from '$lib/api.js';
+  import { afterNavigate, goto } from '$app/navigation';
+  import AvatarUsuario from '$lib/AvatarUsuario.svelte';
+  import { apagarToken, obterToken, requisicao } from '$lib/api.js';
 
   let autenticado = $state(false);
+  let perfil = $state(null);
+  let versaoFoto = $state(0);
+
+  async function carregarPerfil() {
+    try {
+      perfil = await requisicao('/usuarios/me');
+    } catch {
+      perfil = null;
+    }
+  }
+
+  function aoAtualizarPerfil() {
+    versaoFoto += 1;
+    void carregarPerfil();
+  }
 
   onMount(() => {
     autenticado = Boolean(obterToken());
+
+    if (autenticado) {
+      void carregarPerfil();
+    }
+
+    window.addEventListener(
+      'estante-perfil-atualizado',
+      aoAtualizarPerfil
+    );
+
+    return () => {
+      window.removeEventListener(
+        'estante-perfil-atualizado',
+        aoAtualizarPerfil
+      );
+    };
+  });
+
+  afterNavigate(() => {
+    autenticado = Boolean(obterToken());
+
+    if (autenticado) {
+      void carregarPerfil();
+    } else {
+      perfil = null;
+    }
   });
 
   async function sair() {
     apagarToken();
     autenticado = false;
+    perfil = null;
     await goto('/login');
   }
 </script>
@@ -30,10 +73,30 @@
     <nav class="menu" aria-label="Navegação principal">
       <a href="/minha-estante">MINHA ESTANTE</a>
       <a href="/comunidade">COMUNIDADE</a>
+
+      {#if autenticado && perfil?.is_admin}
+        <a class="admin-link" href="/admin">
+          PAINEL ADM
+        </a>
+      {/if}
     </nav>
 
     <div class="acoes">
       {#if autenticado}
+        <a
+          class="perfil-link"
+          href="/minha-conta"
+          aria-label="Meu perfil"
+          title="Meu perfil"
+        >
+          <AvatarUsuario
+            usuarioId="me"
+            nome={perfil?.nome_perfil || ''}
+            tamanho={42}
+            versao={versaoFoto}
+          />
+        </a>
+
         <button
           class="acao-rosa"
           type="button"
@@ -108,12 +171,21 @@
     cursor: pointer;
   }
 
-  .menu a {
+  .menu a,
+  .menu a.admin-link {
     background: #fffdf8;
   }
 
-  .menu a:hover {
+  .menu a:hover,
+  .menu a:focus-visible,
+  .menu a.admin-link:hover,
+  .menu a.admin-link:focus-visible {
     background: #f3e9ff;
+  }
+
+  .menu a:focus-visible {
+    outline: 2px solid #813cea;
+    outline-offset: 3px;
   }
 
   .acoes {
@@ -134,6 +206,25 @@
   .acoes .acao-rosa {
     background: #ff456b;
     color: white;
+  }
+
+  .acoes a.perfil-link {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    box-shadow: none;
+    background: none;
+  }
+
+  .perfil-link :global(.cm-avatar) {
+    box-shadow: 2px 3px 0 #292033;
+    transition: transform 0.1s;
+  }
+
+  .perfil-link:hover :global(.cm-avatar),
+  .perfil-link:focus-visible :global(.cm-avatar) {
+    transform: translateY(-2px);
   }
 
   @media (max-width: 750px) {
@@ -163,6 +254,10 @@
     .acoes button {
       padding: 7px 9px;
       font-size: 13px;
+    }
+
+    .acoes a.perfil-link {
+      padding: 0;
     }
   }
 </style>
