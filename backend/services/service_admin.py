@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import select, or_
+from sqlalchemy import func, select, or_
 from sqlalchemy.orm import Session, joinedload, defer
 from models import Termo, UsuarioObra
 from schemas.termo import TermoCreate
@@ -41,19 +41,31 @@ class AdminService:
     # Resenhas de todos os usuários para moderação (RN16). Só entram registros com nota
     @staticmethod
     def listarResenhas(db: Session, busca: str | None = None, obras_id: int | None = None,
-                       usuarios_id: int | None = None, pagina: int = 1, limite: int = 20) -> list[UsuarioObra]:
+                       usuarios_id: int | None = None, situacao: str = "todas",
+                       pagina: int = 1, limite: int = 20) -> tuple[list[UsuarioObra], int]:
         pagina, limite = max(pagina, 1), min(max(limite, 1), 50)
-        consulta = (select(UsuarioObra)
-                    .options(joinedload(UsuarioObra.usuario), joinedload(UsuarioObra.obra))
-                    .where(UsuarioObra.nota.is_not(None))
-                    .order_by(UsuarioObra.data_publicacao.desc(), UsuarioObra.id.desc()))
+
+        filtros = [UsuarioObra.nota.is_not(None)]
         if busca and busca.strip():
-            consulta = consulta.where(UsuarioObra.resenha.ilike(f"%{busca.strip()[:100]}%"))
+            filtros.append(UsuarioObra.resenha.ilike(f"%{busca.strip()[:100]}%"))
         if obras_id:
-            consulta = consulta.where(UsuarioObra.obras_id == obras_id)
+            filtros.append(UsuarioObra.obras_id == obras_id)
         if usuarios_id:
-            consulta = consulta.where(UsuarioObra.usuarios_id == usuarios_id)
-        return list(db.scalars(consulta.offset((pagina - 1) * limite).limit(limite)))
+            filtros.append(UsuarioObra.usuarios_id == usuarios_id)
+        if situacao == "bloqueadas":
+            filtros.append(UsuarioObra.resenha_bloqueada.is_(True))
+        elif situacao == "publicadas":
+            filtros.append(UsuarioObra.resenha_bloqueada.is_(False))
+
+        total = db.scalar(select(func.count()).select_from(UsuarioObra).where(*filtros)) or 0
+
+        resenhas = list(db.scalars(
+            select(UsuarioObra)
+            .options(joinedload(UsuarioObra.usuario), joinedload(UsuarioObra.obra))
+            .where(*filtros)
+            .order_by(UsuarioObra.data_publicacao.desc(), UsuarioObra.id.desc())
+            .offset((pagina - 1) * limite).limit(limite)))
+        return resenhas, total
 
     # Bloquear não apaga: a resenha fica guardada e escondida, e pode ser liberada de novo (RN16)
     @staticmethod

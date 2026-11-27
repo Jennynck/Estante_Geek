@@ -1,8 +1,10 @@
+from admin_padrao import criarAdminPadrao
 from fastapi import BackgroundTasks, Depends, FastAPI, UploadFile, HTTPException, Response, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from database import engine, get_db
+from typing import Literal
 from models import Base, Usuario
 from models.base import TipoObra
 
@@ -25,6 +27,7 @@ from services.service_admin import AdminService
 
 # Cria as tabelas no banco caso não existam
 Base.metadata.create_all(bind=engine)
+criarAdminPadrao()
 app = FastAPI(title="Estante Geek")
 
 # Libera o frontend (Svelte, porta 5173) para chamar a API
@@ -33,6 +36,7 @@ app.add_middleware(
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count"],
 )
 
 # Usuário logado, a partir do token enviado no cabeçalho Authorization
@@ -238,10 +242,14 @@ def removerTermo(termos_id: int, admin: Usuario = Depends(administradorLogado),
 
 # ---------- Administrador: moderação de resenhas ----------
 @app.get("/admin/resenhas", response_model=list[ResenhaModeracao])
-def listarResenhasAdmin(busca: str | None = None, obras_id: int | None = None,
-                        usuarios_id: int | None = None, pagina: int = 1, limite: int = 20,
+def listarResenhasAdmin(response: Response, busca: str | None = None, obras_id: int | None = None,
+                        usuarios_id: int | None = None,
+                        situacao: Literal["todas", "publicadas", "bloqueadas"] = "todas",
+                        pagina: int = 1, limite: int = 20,
                         admin: Usuario = Depends(administradorLogado), db: Session = Depends(get_db)):
-    return AdminService.listarResenhas(db, busca, obras_id, usuarios_id, pagina, limite)
+    resenhas, total = AdminService.listarResenhas(db, busca, obras_id, usuarios_id, situacao, pagina, limite)
+    response.headers["X-Total-Count"] = str(total)
+    return resenhas
 
 @app.patch("/admin/resenhas/{resenhas_id}", response_model=ResenhaModeracao)
 def bloquearResenhaAdmin(resenhas_id: int, dados: ResenhaBloqueio,
